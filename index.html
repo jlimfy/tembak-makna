@@ -1,0 +1,2086 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Tembak Makna — Bahasa Melayu FPS</title>
+<style>
+  :root{
+    --bg:#070b14; --panel:rgba(10,16,30,.92); --line:rgba(120,160,220,.22);
+    --ink:#e8f0ff; --muted:#93a6c8; --accent:#3ea6ff;
+    --good:#31d98b; --bad:#ff5a6e; --gold:#ffc94d;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    overflow:hidden;-webkit-tap-highlight-color:transparent}
+  canvas{display:block}
+
+  /* ───── HUD ───── */
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:10;display:none}
+  #hud.on{display:block}
+
+  #phraseBar{position:absolute;top:16px;left:50%;transform:translateX(-50%);
+    width:min(720px,92vw);background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:12px 16px;backdrop-filter:blur(8px);
+    box-shadow:0 12px 40px rgba(0,0,0,.55);display:flex;align-items:center;gap:12px}
+  #phraseText{flex:1;font-size:clamp(17px,3vw,27px);font-weight:700;line-height:1.25}
+  #catTag{font-size:11px;text-transform:uppercase;letter-spacing:1.4px;
+    color:var(--accent);font-weight:700;margin-bottom:4px;display:block}
+  #speakBtn{pointer-events:auto;flex:0 0 auto;width:48px;height:48px;border-radius:12px;
+    border:1px solid var(--line);background:rgba(62,166,255,.12);color:var(--accent);
+    font-size:22px;cursor:pointer;transition:.15s;display:grid;place-items:center}
+  #speakBtn:hover{background:rgba(62,166,255,.26)}
+  #speakBtn.speaking{background:var(--accent);color:#04101f}
+
+  #stats{position:absolute;top:16px;left:16px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;padding:10px 14px;
+    font-variant-numeric:tabular-nums;min-width:128px}
+  #stats .row{display:flex;justify-content:space-between;gap:14px;font-size:13px;padding:3px 0}
+  #stats .k{color:var(--muted)}
+  #stats .v{font-weight:700}
+  #streakV.hot{color:var(--gold)}
+
+  #timerWrap{position:absolute;top:16px;right:16px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;padding:10px 14px;
+    text-align:center;min-width:104px}
+  #timerV{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}
+  #timerWrap.low #timerV{color:var(--bad)}
+  #timerLbl{font-size:10px;letter-spacing:1.6px;text-transform:uppercase;color:var(--muted)}
+  #progV{font-size:11px;color:var(--muted);margin-top:4px}
+
+  #mapWrap{position:absolute;bottom:16px;right:16px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;padding:8px}
+  #map{display:block;border-radius:6px}
+  #mapLbl{font-size:9px;letter-spacing:1.4px;text-transform:uppercase;
+    color:var(--muted);text-align:center;margin-top:5px}
+
+  #crosshair{position:absolute;top:50%;left:50%;width:26px;height:26px;
+    margin:-13px 0 0 -13px;transition:transform .07s}
+  #crosshair::before,#crosshair::after{content:"";position:absolute;background:#fff;
+    box-shadow:0 0 4px rgba(0,0,0,.9)}
+  #crosshair::before{left:50%;top:0;width:2px;height:26px;margin-left:-1px}
+  #crosshair::after{top:50%;left:0;height:2px;width:26px;margin-top:-1px}
+  #crosshair.kick{transform:scale(1.5)}
+
+  #toast{position:absolute;top:56%;left:50%;transform:translateX(-50%);
+    font-size:clamp(20px,3.6vw,36px);font-weight:900;letter-spacing:1px;
+    text-shadow:0 4px 18px rgba(0,0,0,.85);opacity:0;transition:opacity .25s;white-space:nowrap}
+  #toast.show{opacity:1}
+  #flash{position:absolute;inset:0;opacity:0;transition:opacity .3s}
+  #flash.bad{background:radial-gradient(circle,transparent 40%,rgba(255,60,80,.42));opacity:1}
+  #fade{position:absolute;inset:0;background:#070b14;opacity:0;
+    transition:opacity .22s;pointer-events:none}
+  #fade.on{opacity:1}
+
+  #keyHint{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);
+    font-size:12px;color:var(--muted);letter-spacing:.3px;text-align:center;
+    background:rgba(7,11,20,.6);padding:6px 14px;border-radius:8px}
+  #keyHint b{color:#c5d8f5}
+  body.touch #keyHint{display:none}
+
+  /* health + weapon */
+  #hpRow{margin-top:7px;padding-top:7px;border-top:1px solid var(--line)}
+  #hpBar{height:7px;border-radius:99px;background:rgba(255,255,255,.10);overflow:hidden;margin-top:4px}
+  #hpIn{height:100%;width:100%;border-radius:99px;background:linear-gradient(90deg,#31d98b,#8ce8b8);
+    transition:width .18s}
+  #hpIn.low{background:linear-gradient(90deg,#ff5a6e,#ff9aa8)}
+  #wepWrap{position:absolute;bottom:16px;left:16px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px;padding:9px 13px;min-width:150px}
+  #wepName{font-size:14px;font-weight:800;letter-spacing:.2px}
+  #wepSlots{display:flex;gap:5px;margin-top:7px}
+  .wepSlot{width:20px;height:20px;border-radius:5px;border:1px solid var(--line);
+    font-size:10px;font-weight:700;display:grid;place-items:center;color:var(--muted)}
+  .wepSlot.have{color:#c5d8f5}
+  .wepSlot.on{background:var(--accent);border-color:var(--accent);color:#04101f}
+  #wepCool{height:3px;border-radius:99px;background:rgba(255,255,255,.10);margin-top:7px;overflow:hidden}
+  #wepCoolIn{height:100%;width:100%;background:var(--accent);transition:width .05s linear}
+
+  #prompt{position:absolute;bottom:26%;left:50%;transform:translateX(-50%);
+    background:var(--panel);border:1px solid var(--accent);border-radius:10px;
+    padding:9px 16px;font-size:14px;font-weight:600;display:none;white-space:nowrap}
+  #prompt.on{display:block}
+  #prompt kbd{margin-right:6px}
+
+  #flash.hurt{background:radial-gradient(circle,transparent 30%,rgba(255,40,60,.55));opacity:1}
+  #enemyHint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    font-size:44px;font-weight:900;color:var(--bad);opacity:0;transition:opacity .2s;
+    text-shadow:0 3px 16px rgba(0,0,0,.9)}
+  #enemyHint.on{opacity:1}
+
+  /* armoury */
+  .wepGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(238px,1fr));gap:13px}
+  .wepCard{border:1px solid var(--line);border-radius:14px;padding:15px 16px;
+    background:rgba(255,255,255,.03);display:flex;flex-direction:column;gap:9px}
+  .wepCard.owned{border-color:rgba(49,217,139,.45);background:rgba(49,217,139,.05)}
+  .wepCard.equipped{border-color:var(--accent);background:rgba(62,166,255,.10)}
+  .wepCard h4{margin:0;font-size:16px;display:flex;align-items:center;gap:8px}
+  .wepCard .swatch{width:11px;height:11px;border-radius:50%;flex:0 0 auto}
+  .wepCard p{margin:0;font-size:12.8px;color:var(--muted);line-height:1.5;flex:1}
+  .wepStats{display:flex;flex-direction:column;gap:5px;margin:2px 0}
+  .wepStat{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)}
+  .wepStat .lab{width:60px;flex:0 0 auto;text-transform:uppercase;letter-spacing:1px;font-size:9.5px}
+  .wepStat .track{flex:1;height:5px;border-radius:99px;background:rgba(255,255,255,.09);overflow:hidden}
+  .wepStat .fill{height:100%;border-radius:99px;background:var(--accent)}
+  .wepBuy{font-family:inherit;font-size:13.5px;font-weight:700;padding:10px 12px;
+    border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);
+    color:var(--ink);cursor:pointer;transition:.14s}
+  .wepBuy:hover:not(:disabled){border-color:var(--accent);background:rgba(62,166,255,.16)}
+  .wepBuy:disabled{opacity:.4;cursor:not-allowed}
+  .wepBuy.equip{background:var(--accent);border-color:var(--accent);color:#04101f}
+  #shopBal{font-variant-numeric:tabular-nums;font-weight:800}
+
+  /* ───── Overlays ───── */
+  .overlay{position:fixed;inset:0;z-index:30;display:none;
+    background:radial-gradient(ellipse at 50% 0%,#12203c 0%,#070b14 65%);
+    overflow-y:auto;padding:26px 18px 44px}
+  .overlay.on{display:block}
+  .sheet{width:min(880px,100%);margin:0 auto}
+  h1{font-size:clamp(28px,6vw,50px);margin:6px 0 2px;letter-spacing:-1px;
+    background:linear-gradient(92deg,#7ec8ff,#c9a6ff 60%,#ffb3c7);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{color:var(--muted);margin:0 0 22px;font-size:15px}
+
+  fieldset{border:1px solid var(--line);border-radius:14px;margin:0 0 14px;
+    padding:13px 16px 16px;background:rgba(255,255,255,.025)}
+  legend{font-size:11px;text-transform:uppercase;letter-spacing:1.6px;
+    color:var(--accent);font-weight:700;padding:0 8px}
+  .chips{display:flex;flex-wrap:wrap;gap:9px}
+  .chip{border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ink);
+    padding:9px 15px;border-radius:999px;cursor:pointer;font-size:14px;
+    transition:.14s;font-family:inherit}
+  .chip:hover{border-color:var(--accent)}
+  .chip.sel{background:var(--accent);border-color:var(--accent);color:#04101f;font-weight:700}
+  .chip .cnt{opacity:.6;font-size:12px;margin-left:5px}
+  .chip.sel .cnt{opacity:.75}
+  .chip .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;
+    vertical-align:middle}
+
+  .toggle{display:flex;align-items:flex-start;gap:10px;font-size:14px;
+    cursor:pointer;padding:5px 0;line-height:1.45}
+  .toggle input{width:18px;height:18px;accent-color:var(--accent);cursor:pointer;
+    margin-top:1px;flex:0 0 auto}
+  .toggle .why{color:var(--muted);font-size:12.5px;display:block}
+
+  .btn{font-family:inherit;font-size:17px;font-weight:800;letter-spacing:.3px;
+    padding:15px 28px;border-radius:14px;border:0;cursor:pointer;transition:.15s;
+    background:linear-gradient(92deg,#3ea6ff,#7b6bff);color:#fff;
+    box-shadow:0 8px 26px rgba(62,110,255,.38)}
+  .btn:hover{filter:brightness(1.12);transform:translateY(-1px)}
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none;filter:none}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);
+    box-shadow:none;font-weight:600;font-size:15px;padding:13px 22px}
+  .btn.ghost:hover{border-color:var(--accent)}
+  .btnrow{display:flex;gap:11px;flex-wrap:wrap;align-items:center;margin-top:6px}
+
+  .warn{border:1px solid rgba(255,201,77,.35);background:rgba(255,201,77,.08);
+    color:#ffd98a;border-radius:12px;padding:11px 14px;font-size:13.5px;margin-bottom:16px}
+
+  .howto{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:14px}
+  .step{border:1px solid var(--line);border-radius:12px;padding:13px 15px;
+    background:rgba(255,255,255,.03)}
+  .step .n{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#04101f;
+    font-weight:800;font-size:13px;display:grid;place-items:center;margin-bottom:8px}
+  .step h4{margin:0 0 5px;font-size:14.5px}
+  .step p{margin:0;font-size:13px;color:var(--muted);line-height:1.5}
+  .keys{font-size:13px;color:var(--muted);line-height:2}
+  kbd{background:rgba(255,255,255,.09);border:1px solid var(--line);border-bottom-width:2px;
+    border-radius:5px;padding:2px 7px;font-family:inherit;font-size:12px;
+    font-weight:700;color:#dbe8ff}
+
+  /* results */
+  .scoreBig{font-size:clamp(48px,11vw,88px);font-weight:900;line-height:1;letter-spacing:-2px}
+  .grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:12px;margin:18px 0 6px}
+  .stat{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:rgba(255,255,255,.03)}
+  .stat .n{font-size:25px;font-weight:800}
+  .stat .l{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-top:2px}
+  .rItem{border:1px solid var(--line);border-left:3px solid var(--bad);border-radius:10px;
+    padding:12px 14px;margin-bottom:9px;background:rgba(255,90,110,.05);cursor:pointer}
+  .rItem.ok{border-left-color:var(--good);background:rgba(49,217,139,.05)}
+  .rTerm{font-weight:700;font-size:16px;margin-bottom:5px}
+  .rMean{font-size:14px;color:#bcd2f2}
+  .rMean b{color:var(--good)}
+  .rGot{font-size:13px;color:#ff9aa8;margin-top:4px}
+  .rCat{font-size:10px;letter-spacing:1.3px;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+
+  #pauseCard{max-width:440px;margin:12vh auto 0;text-align:center;background:var(--panel);
+    border:1px solid var(--line);border-radius:18px;padding:30px 26px}
+
+  /* ───── Study mode ───── */
+  #card{border:1px solid var(--line);border-radius:20px;padding:34px 28px;
+    background:linear-gradient(170deg,rgba(62,166,255,.10),rgba(255,255,255,.03));
+    min-height:230px;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;cursor:pointer;position:relative;
+    transition:.15s;user-select:none}
+  #card:hover{border-color:var(--accent)}
+  #cardCat{position:absolute;top:14px;left:18px;font-size:10px;letter-spacing:1.5px;
+    text-transform:uppercase;color:var(--muted)}
+  #cardNum{position:absolute;top:14px;right:18px;font-size:12px;color:var(--muted);
+    font-variant-numeric:tabular-nums}
+  #cardTerm{font-size:clamp(21px,4.4vw,36px);font-weight:800;line-height:1.25;margin-bottom:14px}
+  #cardMean{font-size:clamp(15px,2.6vw,21px);color:var(--good);font-weight:600;
+    line-height:1.4;min-height:30px}
+  #cardMean.hidden{color:var(--muted);font-weight:400;font-style:italic;font-size:15px}
+  #cardBm{margin-top:12px;padding-top:11px;border-top:1px solid var(--line);
+    font-size:clamp(13px,2.1vw,16px);color:#bcd2f2;line-height:1.45;max-width:56ch}
+  #cardBm b{color:var(--muted);font-weight:700;font-size:10px;letter-spacing:1.3px;
+    text-transform:uppercase;display:block;margin-bottom:4px}
+  #cardBm[hidden]{display:none!important}
+  #studyBar{display:flex;gap:10px;align-items:center;justify-content:center;
+    margin-top:18px;flex-wrap:wrap}
+  #studyProg{height:5px;border-radius:99px;background:rgba(255,255,255,.08);margin-top:20px;overflow:hidden}
+  #studyProgIn{height:100%;background:linear-gradient(90deg,#3ea6ff,#7b6bff);width:0;transition:width .2s}
+  .mini{font-size:13px;color:var(--muted);line-height:1.65}
+  code{background:rgba(255,255,255,.07);padding:1px 6px;border-radius:4px;font-size:12.5px}
+</style>
+</head>
+<body>
+
+<!-- ══════════════ MENU ══════════════ -->
+<div class="overlay on" id="menu">
+  <div class="sheet">
+    <h1>Tembak Makna</h1>
+    <p class="sub">Shoot the Meaning — a Bahasa Melayu vocabulary game</p>
+
+    <div class="warn" id="webglWarn" style="display:none"></div>
+
+    <fieldset>
+      <legend>How to play</legend>
+      <div class="howto">
+        <div class="step"><div class="n">1</div><h4>Read the phrase</h4>
+          <p>A Malay phrase appears at the top of the screen and is read aloud. Press <kbd>L</kbd> to hear it again.</p></div>
+        <div class="step"><div class="n">2</div><h4>Find the right room</h4>
+          <p>Each doorway leads to a room for one category. Work out which category the phrase belongs to and walk into that room.</p></div>
+        <div class="step"><div class="n">3</div><h4>Fight past the drones</h4>
+          <p>Guard drones patrol the hub in front of the doors and shoot back. Clear them or dodge past — they never follow you into a room.</p></div>
+        <div class="step"><div class="n">4</div><h4>Shoot the meaning</h4>
+          <p>Answer panels hang on the walls inside. You must be standing in the room to answer — no shooting through the doorway.</p></div>
+        <div class="step"><div class="n">5</div><h4>Spend at the armoury</h4>
+          <p>The lit console at the side of the hub sells better weapons. Walk up, press <kbd>E</kbd>. What you spend comes off your final score.</p></div>
+      </div>
+      <div class="keys" style="margin-top:14px">
+        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys — walk &nbsp;·&nbsp;
+        <kbd>Shift</kbd> — run &nbsp;·&nbsp; <b>Mouse</b> — look &nbsp;·&nbsp;
+        <b>Click</b> — shoot &nbsp;·&nbsp; <kbd>L</kbd> — replay audio &nbsp;·&nbsp;
+        <kbd>Esc</kbd> — pause
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Categories — one room each</legend>
+      <div class="chips" id="catChips"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Difficulty</legend>
+      <div class="chips" id="diffChips">
+        <button class="chip sel" data-v="3">Easy <span class="cnt">3 answers per room</span></button>
+        <button class="chip" data-v="4">Medium <span class="cnt">4 answers</span></button>
+        <button class="chip" data-v="6">Hard <span class="cnt">6 answers</span></button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Round length</legend>
+      <div class="chips" id="lenChips">
+        <button class="chip sel" data-v="10">10 questions</button>
+        <button class="chip" data-v="20">20 questions</button>
+        <button class="chip" data-v="0">Everything</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Time limit</legend>
+      <div class="chips" id="timeChips">
+        <button class="chip" data-v="180">3 minutes</button>
+        <button class="chip sel" data-v="300">5 minutes</button>
+        <button class="chip" data-v="600">10 minutes</button>
+        <button class="chip" data-v="0">No limit</button>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Guards</legend>
+      <div class="chips" id="guardChips">
+        <button class="chip" data-v="0">None <span class="cnt">study only</span></button>
+        <button class="chip" data-v="2">Light <span class="cnt">2 drones</span></button>
+        <button class="chip sel" data-v="4">Normal <span class="cnt">4 drones</span></button>
+        <button class="chip" data-v="6">Heavy <span class="cnt">6 drones</span></button>
+      </div>
+      <p class="mini" style="margin:10px 0 0">
+        Drones patrol the hub in front of the doors and shoot back. Clear a path or run past them.
+        They never follow you into a room, so you can read the answers in peace.
+      </p>
+    </fieldset>
+
+    <fieldset>
+      <legend>Options</legend>
+      <label class="toggle"><input type="checkbox" id="optHint" checked>
+        <span>Show the category name<span class="why">Off = the phrase is shown without its category, so the player must work out which room to enter. A big jump in difficulty.</span></span></label>
+      <label class="toggle"><input type="checkbox" id="optSpeak" checked>
+        <span>Read each phrase aloud automatically</span></label>
+      <label class="toggle"><input type="checkbox" id="optSfx" checked>
+        <span>Sound effects</span></label>
+    </fieldset>
+
+    <div class="btnrow">
+      <button class="btn" id="startBtn">START GAME ▶</button>
+      <button class="btn ghost" id="studyBtn">📖 Study Mode</button>
+      <span class="mini" id="poolInfo"></span>
+    </div>
+
+    <p class="mini" style="margin-top:24px">
+      <b>For teachers:</b> the word lists are in one clearly-marked block near the top of this
+      file's <code>&lt;script&gt;</code> — search for <code>WORD_DATA</code>.
+      Add a category and a new room is built for it automatically.
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════ STUDY MODE ══════════════ -->
+<div class="overlay" id="study">
+  <div class="sheet">
+    <h1 style="font-size:clamp(24px,5vw,38px)">Study Mode</h1>
+    <p class="sub">Flip through the phrases before you play. Click the card to reveal the meaning.</p>
+
+    <fieldset>
+      <legend>Categories</legend>
+      <div class="chips" id="studyCats"></div>
+    </fieldset>
+
+    <div id="card">
+      <div id="cardCat">—</div>
+      <div id="cardNum">0 / 0</div>
+      <div id="cardTerm">—</div>
+      <div id="cardMean" class="hidden">Click to reveal the meaning</div>
+      <div id="cardBm" hidden></div>
+    </div>
+    <div id="studyProg"><div id="studyProgIn"></div></div>
+
+    <div id="studyBar">
+      <button class="btn ghost" id="sPrev">← Previous</button>
+      <button class="btn ghost" id="sSpeak">🔊 Read aloud</button>
+      <button class="btn ghost" id="sFlip">Reveal</button>
+      <button class="btn ghost" id="sNext">Next →</button>
+    </div>
+    <div class="btnrow" style="justify-content:center;margin-top:16px">
+      <label class="toggle" style="margin-right:14px"><input type="checkbox" id="sShuffle"> <span>Shuffle order</span></label>
+      <button class="btn ghost" id="sBack">← Back to menu</button>
+    </div>
+    <p class="mini" style="text-align:center;margin-top:18px">
+      <kbd>←</kbd> <kbd>→</kbd> move &nbsp;·&nbsp; <kbd>Space</kbd> reveal &nbsp;·&nbsp;
+      <kbd>L</kbd> read aloud &nbsp;·&nbsp; <kbd>Esc</kbd> back
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════ ARMOURY ══════════════ -->
+<div class="overlay" id="armoury">
+  <div class="sheet">
+    <h1 style="font-size:clamp(24px,5vw,38px)">Armoury</h1>
+    <p class="sub">Spend score on a new weapon. What you spend comes off your final score,
+      so a better gun costs you marks — the round total shows both.</p>
+    <fieldset style="margin-bottom:18px">
+      <legend>Balance</legend>
+      <div style="font-size:15px">Score available: <span id="shopBal">0</span>
+        &nbsp;·&nbsp; <span class="mini">Spent so far: <span id="shopSpent">0</span></span></div>
+    </fieldset>
+    <div class="wepGrid" id="wepGrid"></div>
+    <div class="btnrow" style="justify-content:center;margin-top:22px">
+      <button class="btn" id="shopClose">Back to the fight</button>
+    </div>
+    <p class="mini" style="text-align:center;margin-top:14px">
+      Answer panels always respond to your crosshair, whatever weapon you carry —
+      a wider gun can never hit two answers at once.
+    </p>
+  </div>
+</div>
+
+<!-- ══════════════ PAUSE ══════════════ -->
+<div class="overlay" id="pause">
+  <div id="pauseCard">
+    <h1 style="font-size:32px">Paused</h1>
+    <p class="sub" style="margin-bottom:22px">Click Resume to lock the mouse again.</p>
+    <div class="btnrow" style="justify-content:center">
+      <button class="btn" id="resumeBtn">Resume</button>
+      <button class="btn ghost" id="quitBtn">End round</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ RESULTS ══════════════ -->
+<div class="overlay" id="results">
+  <div class="sheet">
+    <p class="sub" style="margin:0">Round complete</p>
+    <div class="scoreBig" id="rScore">0</div>
+    <div class="grid4">
+      <div class="stat"><div class="n" id="rCorrect">0</div><div class="l">Correct</div></div>
+      <div class="stat"><div class="n" id="rWrong">0</div><div class="l">Wrong</div></div>
+      <div class="stat"><div class="n" id="rAcc">0%</div><div class="l">Accuracy</div></div>
+      <div class="stat"><div class="n" id="rStreak">0</div><div class="l">Best streak</div></div>
+      <div class="stat"><div class="n" id="rKills">0</div><div class="l">Drones downed</div></div>
+      <div class="stat"><div class="n" id="rSpent">0</div><div class="l">Spent on guns</div></div>
+    </div>
+    <p class="mini" id="rEarned" style="margin:4px 0 0"></p>
+    <div class="btnrow" style="margin:20px 0 24px">
+      <button class="btn" id="againBtn">Play again</button>
+      <button class="btn ghost" id="drillBtn" style="display:none">Practise the ones I missed</button>
+      <button class="btn ghost" id="studyBtn2">📖 Study Mode</button>
+      <button class="btn ghost" id="menuBtn">Menu</button>
+    </div>
+    <h2 style="font-size:19px;margin:0 0 10px" id="revTitle">Review</h2>
+    <p class="mini" style="margin:0 0 12px">Click any phrase to hear it read aloud.</p>
+    <div id="reviewList"></div>
+  </div>
+</div>
+
+<!-- ══════════════ HUD ══════════════ -->
+<div id="hud">
+  <div id="flash"></div>
+  <div id="stats">
+    <div class="row"><span class="k">Score</span><span class="v" id="scoreV">0</span></div>
+    <div class="row"><span class="k">Streak</span><span class="v" id="streakV">0</span></div>
+    <div id="hpRow">
+      <div class="row"><span class="k">Health</span><span class="v" id="hpV">100</span></div>
+      <div id="hpBar"><div id="hpIn"></div></div>
+    </div>
+  </div>
+  <div id="wepWrap">
+    <div id="wepName">Blaster</div>
+    <div id="wepSlots"></div>
+    <div id="wepCool"><div id="wepCoolIn"></div></div>
+  </div>
+  <div id="prompt"><kbd>E</kbd><span id="promptTxt">Armoury</span></div>
+  <div id="enemyHint"></div>
+  <div id="phraseBar">
+    <div style="flex:1;min-width:0">
+      <span id="catTag">—</span>
+      <div id="phraseText">—</div>
+    </div>
+    <button id="speakBtn" title="Read aloud (L)">🔊</button>
+  </div>
+  <div id="timerWrap">
+    <div id="timerV">—</div>
+    <div id="timerLbl">Time</div>
+    <div id="progV">0 / 0</div>
+  </div>
+  <div id="mapWrap"><canvas id="map" width="180" height="130"></canvas><div id="mapLbl">Map</div></div>
+  <div id="crosshair"></div>
+  <div id="toast"></div>
+  <div id="keyHint"><b>WASD</b> walk · <b>Shift</b> run · <b>Click</b> shoot · <b>1-4</b> weapon · <b>E</b> armoury · <b>L</b> replay · <b>Esc</b> pause</div>
+  <div id="fade"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ╔══════════════════════════════════════════════════════════════════════╗
+   ║  WORD LISTS — EDIT BELOW THIS LINE                                   ║
+   ║                                                                      ║
+   ║  Format:   { term: "Malay phrase", meaning: "English meaning" }      ║
+   ║                                                                      ║
+   ║  Optional: group: "xyz"                                              ║
+   ║    Items sharing a group are treated as near-synonyms and will       ║
+   ║    never be used as wrong answers for one another. Use it for        ║
+   ║    penanda wacana, where several markers mean almost the same thing. ║
+   ║                                                                      ║
+   ║  Optional: theme: "Penyesalan (Regret)"                              ║
+   ║    Shown as a sub-heading in the printed word list, and works like   ║
+   ║    group — two phrases from the same theme are never offered against ║
+   ║    each other as answers.                                            ║
+   ║                                                                      ║
+   ║  Optional: bm: "Maksud dalam Bahasa Melayu"                          ║
+   ║    Shown in Study Mode under the English meaning, and as an extra    ║
+   ║    column in the printed word list. The shooting game always asks    ║
+   ║    for the ENGLISH meaning, so adding bm never changes gameplay.     ║
+   ║                                                                      ║
+   ║  Alternatives: write them with a slash, e.g.                         ║
+   ║    "Hitam macam arang / buntut kuali"                                ║
+   ║  Everything from the first slash onward is shown on screen and in    ║
+   ║  the printed word list, but is left out of the read-aloud audio.     ║
+   ║                                                                      ║
+   ║  Each category becomes its OWN ROOM in the game. Add a category by   ║
+   ║  adding a new  "Name": [ ... ]  block — a room is built for it       ║
+   ║  automatically. Keep the commas and quotes exactly as shown.         ║
+   ╚══════════════════════════════════════════════════════════════════════╝ */
+
+const WORD_DATA = {
+
+  "Bandingan Semacam": [
+    { term:"Adil macam hakim",                  meaning:"Completely fair and impartial" },
+    { term:"Angkuh macam merak",                meaning:"Proud and full of self-importance" },
+    { term:"Bebas macam burung",                meaning:"As free as a bird" },
+    { term:"Berani macam harimau / singa",      meaning:"Extremely brave and fearless" },
+    { term:"Berat macam batu",                  meaning:"Very heavy" },
+    { term:"Besar macam gajah",                 meaning:"Enormous in size" },
+    { term:"Bijak macam pendeta",               meaning:"Very wise and learned", group:"clever" },
+    { term:"Bodoh macam kerbau / lembu",        meaning:"Extremely stupid and slow to understand" },
+    { term:"Bulat macam bola",                  meaning:"Perfectly round" },
+    { term:"Busuk macam bangkai",               meaning:"Foul-smelling and rotten" },
+    { term:"Cantik macam bidadari / bunga",     meaning:"Very beautiful" },
+    { term:"Cepat macam kilat",                 meaning:"As fast as lightning", group:"fast" },
+    { term:"Cerah macam siang",                 meaning:"Bright and clear", group:"bright" },
+    { term:"Cerdik macam sang kancil",          meaning:"Clever and cunning", group:"clever" },
+    { term:"Degil macam keldai",                meaning:"Very stubborn" },
+    { term:"Deras macam ribut",                 meaning:"Rushing along with great force", group:"fast" },
+    { term:"Gagah macam gergasi",               meaning:"Powerfully built and mighty", group:"strong" },
+    { term:"Ganas macam harimau / singa",       meaning:"Fierce and savage", group:"fierce" },
+    { term:"Garang macam harimau",              meaning:"Fierce and bad-tempered", group:"fierce" },
+    { term:"Gebu macam kapas",                  meaning:"Soft and fluffy", group:"soft" },
+    { term:"Gelap macam malam",                 meaning:"Pitch dark" },
+    { term:"Gemuk macam babi",                  meaning:"Very fat" },
+    { term:"Halus macam baldu / habuk",         meaning:"Extremely fine and delicate" },
+    { term:"Hangat macam api",                  meaning:"Burning hot", group:"hot" },
+    { term:"Harum macam bunga",                 meaning:"Sweet-smelling and fragrant", group:"fragrant" },
+    { term:"Hijau macam rumput",                meaning:"Bright green" },
+    { term:"Hina macam kucing kurap",           meaning:"Lowly and looked down upon" },
+    { term:"Hitam macam arang / buntut kuali",  meaning:"Jet black" },
+    { term:"Ikal macam mayang",                 meaning:"Beautifully wavy, said of hair" },
+    { term:"Jernih macam cermin",               meaning:"Crystal clear" },
+    { term:"Jinak macam merpati",               meaning:"Very tame and gentle" },
+    { term:"Kasar macam kulit nangka",          meaning:"Rough and coarse" },
+    { term:"Kecil macam semut",                 meaning:"Tiny" },
+    { term:"Kencang macam ribut",               meaning:"Blowing very strongly", group:"fast" },
+    { term:"Keras macam batu / besi",           meaning:"Very hard and unyielding" },
+    { term:"Kesat macam pasir",                 meaning:"Rough and gritty to the touch" },
+    { term:"Kotor macam najis",                 meaning:"Filthy and disgusting" },
+    { term:"Kuat macam Badang",                 meaning:"Enormously strong", group:"strong" },
+    { term:"Kuning macam kunyit",               meaning:"Bright yellow" },
+    { term:"Kurus macam lidi",                  meaning:"Extremely thin and skinny" },
+    { term:"Lambat macam kura-kura / siput",    meaning:"Very slow" },
+    { term:"Lancar macam air",                  meaning:"Smooth and fluent, without stumbling" },
+    { term:"Lari macam kuda",                   meaning:"Running very fast", group:"fast" },
+    { term:"Lembut macam sutera",               meaning:"Soft and smooth", group:"soft" },
+    { term:"Liat macam getah",                  meaning:"Tough and hard to break" },
+    { term:"Licin macam belut",                 meaning:"As slippery as an eel" },
+    { term:"Ligat macam gasing",                meaning:"Spinning round very quickly", group:"fast" },
+    { term:"Luas macam padang",                 meaning:"Very wide and spacious" },
+    { term:"Mahal macam berlian / emas",        meaning:"Extremely expensive" },
+    { term:"Malas macam keldai",                meaning:"Very lazy" },
+    { term:"Manis macam gula / madu",           meaning:"Very sweet" },
+    { term:"Masam macam cuka",                  meaning:"Very sour" },
+    { term:"Masin macam garam",                 meaning:"Very salty" },
+    { term:"Menangis macam budak-budak",        meaning:"Crying like a small child" },
+    { term:"Merah macam biji saga / darah",     meaning:"Bright red" },
+    { term:"Merdu macam buluh perindu",         meaning:"Sweet and melodious" },
+    { term:"Miskin macam pengemis",             meaning:"Very poor" },
+    { term:"Mulia macam raja",                  meaning:"Noble and honourable" },
+    { term:"Nipis macam kertas",                meaning:"As thin as paper" },
+    { term:"Pahit macam hempedu / jadam",       meaning:"Extremely bitter" },
+    { term:"Panas macam api",                   meaning:"Scorching hot", group:"hot" },
+    { term:"Pandai macam Sang Kancil",          meaning:"Very clever and quick-witted", group:"clever" },
+    { term:"Pantas macam kijang / kilat",       meaning:"Swift and nimble", group:"fast" },
+    { term:"Pedas macam cabai / cili",          meaning:"Very spicy" },
+    { term:"Pucat macam mayat",                 meaning:"As pale as a ghost" },
+    { term:"Putih macam kapas",                 meaning:"Pure white" },
+    { term:"Rajin macam semut",                 meaning:"Very hardworking", group:"busy" },
+    { term:"Ramai macam semut / ulat",          meaning:"Very crowded, in huge numbers" },
+    { term:"Rata macam padang",                 meaning:"Completely flat and even" },
+    { term:"Ringan macam kekabu",               meaning:"As light as a feather" },
+    { term:"Riuh macam pasar",                  meaning:"Very noisy and rowdy" },
+    { term:"Sabar macam nabi",                  meaning:"Extremely patient" },
+    { term:"Segak macam putera",                meaning:"Smart and handsome in appearance" },
+    { term:"Sejuk macam air batu / ais",        meaning:"Ice cold" },
+    { term:"Sibuk macam lebah",                 meaning:"As busy as a bee", group:"busy" },
+    { term:"Tajam macam pedang / sembilu",      meaning:"Very sharp" },
+    { term:"Takut macam tikus",                 meaning:"Very timid and easily frightened" },
+    { term:"Tandus macam padang pasir",         meaning:"Barren and dry" },
+    { term:"Tawar macam air",                   meaning:"Tasteless and bland" },
+    { term:"Terang macam siang",                meaning:"As bright as daylight", group:"bright" },
+    { term:"Tinggi macam galah",                meaning:"Very tall" },
+    { term:"Tumpul macam belakang parang",      meaning:"Very blunt" },
+    { term:"Wangi macam bunga",                 meaning:"Sweet-scented and perfumed", group:"fragrant" },
+    { term:"Zalim macam Firaun",                meaning:"Extremely cruel and tyrannical" }
+  ],
+
+  "Peribahasa": [
+    /* Budi Bahasa (Good Manners & Courtesy) */
+    { term:"Bagai kacang melupakan kulit",
+      meaning:"Ungrateful person who forgets their roots or those who helped them.",
+      bm:"Orang yang lupa akan asal-usulnya atau orang yang pernah menolongnya.",
+      theme:"Budi Bahasa (Good Manners & Courtesy)" },
+    { term:"Bagai melepaskan anjing tersepit",
+      meaning:"Helping someone ungrateful who turns back and harms you.",
+      bm:"Menolong orang yang tidak tahu mengenang budi.",
+      theme:"Budi Bahasa (Good Manners & Courtesy)" },
+    { term:"Baik membawa resmi padi daripada membawa resmi lalang",
+      meaning:"Remain humble like ripe paddy, rather than arrogant like tall weeds.",
+      bm:"Sentiasa merendah diri walau semakin berpengaruh atau berilmu.",
+      theme:"Budi Bahasa (Good Manners & Courtesy)" },
+    { term:"Berkata peliharalah lidah",
+      meaning:"Guard your speech and be careful with your words.",
+      bm:"Hati-hati dengan setiap pertuturan atau tutur kata.",
+      theme:"Budi Bahasa (Good Manners & Courtesy)" },
+    { term:"Harimau mati meninggalkan belang, manusia mati meninggalkan nama",
+      meaning:"A person’s legacy and good deeds endure long after they are gone.",
+      bm:"Setiap manusia dikenang kerana jasa dan baktinya semasa hidup.",
+      theme:"Budi Bahasa (Good Manners & Courtesy)" },
+    /* Kasih Sayang / Perhubungan (Love & Relationships) */
+    { term:"Air dicencang tidak akan putus",
+      meaning:"Family bonds cannot be broken permanently by conflicts.",
+      bm:"Perbalahan atau perselisihan antara adik-beradik tidak akan berpanjangan.",
+      theme:"Kasih Sayang / Perhubungan (Love & Relationships)" },
+    { term:"Anak di pangkuan dilepaskan, kera di riba disusui",
+      meaning:"Neglecting one's own family to care for strangers.",
+      bm:"Melebihkan orang lain daripada keluarga atau urusan sendiri.",
+      theme:"Kasih Sayang / Perhubungan (Love & Relationships)" },
+    { term:"Bagai isi dengan kuku / Bagai dakwat dengan kertas / Bagai beliuang dengan asahan",
+      meaning:"Inseparable or very close relationship.",
+      bm:"Hubungan yang sangat rapat dan erat.",
+      theme:"Kasih Sayang / Perhubungan (Love & Relationships)" },
+    { term:"Bersatu teguh, bercerai roboh",
+      meaning:"United we stand, divided we fall.",
+      bm:"Bersatu padu menjadikan kita kuat, berpecah belah menjadikan kita lemah.",
+      theme:"Kasih Sayang / Perhubungan (Love & Relationships)" },
+    { term:"Bukit sama didaki, lurah sama dituruni",
+      meaning:"Standing together through thick and thin.",
+      bm:"Perhubungan yang sangat akrab dan sentiasa bersama waktu susah mahupun senang.",
+      theme:"Kasih Sayang / Perhubungan (Love & Relationships)" },
+    /* Perbuatan yang Sia-sia (Futility & Unproductive Actions) */
+    { term:"Ada sampan hendak berenang",
+      meaning:"Intentionally choosing the hard way when an easier alternative exists.",
+      bm:"Sengaja menyusahkan diri sendiri.",
+      theme:"Perbuatan yang Sia-sia (Futility & Unproductive Actions)" },
+    { term:"Harapkan guruh di langit, air di tempayan dicurahkan",
+      meaning:"Discarding current assets in anticipation of an uncertain future gain.",
+      bm:"Melepaskan barang yang dimiliki demi mengharapkan sesuatu yang belum pasti.",
+      theme:"Perbuatan yang Sia-sia (Futility & Unproductive Actions)" },
+    { term:"Kalah jadi abu, menang jadi arang",
+      meaning:"Neither side gains in a dispute; both end up losing.",
+      bm:"Dua pihak yang berkelahi sama-sama menanggung kerugian.",
+      theme:"Perbuatan yang Sia-sia (Futility & Unproductive Actions)" },
+    { term:"Kutu embun",
+      meaning:"Night owls or loafers who wander aimlessly late at night.",
+      bm:"Orang yang suka merayau-rayau hingga larut malam tanpa tujuan.",
+      theme:"Perbuatan yang Sia-sia (Futility & Unproductive Actions)" },
+    { term:"Mencurahkan garam ke laut",
+      meaning:"Wasting effort on a futile task (literally: pouring salt into the sea).",
+      bm:"Melakukan pekerjaan yang sia-sia dan tidak memberi faedah.",
+      theme:"Perbuatan yang Sia-sia (Futility & Unproductive Actions)" },
+    /* Semangat Patriotisme / Cinta akan Negara (Patriotism) */
+    { term:"Bahasa menunjukkan bangsa / Bahasa jiwa bangsa",
+      meaning:"Language reflects a nation's identity and culture.",
+      bm:"Bahasa menjadi lambang dan identiti sesuatu bangsa.",
+      theme:"Semangat Patriotisme / Cinta akan Negara (Patriotism)" },
+    { term:"Di mana bumi dipijak, di situ langit dijunjung",
+      meaning:"Respect and adapt to the customs and laws of the place you live in (When in Rome, do as the Romans do).",
+      bm:"Mematuhi peraturan dan adat di tempat yang kita diami.",
+      theme:"Semangat Patriotisme / Cinta akan Negara (Patriotism)" },
+    { term:"Hilang bahasa, lenyaplah bangsa",
+      meaning:"The loss of a native language leads to the loss of cultural identity.",
+      bm:"Jika sesuatu bahasa itu pupus, maka bangsa itu juga akan hilang identitinya.",
+      theme:"Semangat Patriotisme / Cinta akan Negara (Patriotism)" },
+    { term:"Hujan emas di negeri orang, hujan batu di negeri sendiri, baik juga di negeri sendiri",
+      meaning:"East or West, home is best.",
+      bm:"Sebaik-baik negara orang lain, tanah air sendiri tetap paling baik.",
+      theme:"Semangat Patriotisme / Cinta akan Negara (Patriotism)" },
+    { term:"Seperti burung gagak pulang ke benua",
+      meaning:"Returning from abroad unchanged or unimproved.",
+      bm:"Seseorang yang tidak berubah watak atau keadaannya meskipun telah lama merantau.",
+      theme:"Semangat Patriotisme / Cinta akan Negara (Patriotism)" },
+    /* Penyesalan (Regret & Remorse) */
+    { term:"Buang yang keruh, ambil yang jernih",
+      meaning:"Forgive and forget the bad past, focus on the good future.",
+      bm:"Melupakan perkara yang buruk dan mengambil perkara yang baik.",
+      theme:"Penyesalan (Regret & Remorse)" },
+    { term:"Nasi sudah menjadi bubur",
+      meaning:"What is done cannot be undone (No use crying over spilled milk).",
+      bm:"Perbuatan terlanjur yang tidak boleh diubah lagi.",
+      theme:"Penyesalan (Regret & Remorse)" },
+    { term:"Sudah terhantuk, baru tengadah",
+      meaning:"Becoming cautious only after trouble has occurred.",
+      bm:"Setelah mendapat kesusahan barulah hendak berhati-hati.",
+      theme:"Penyesalan (Regret & Remorse)" },
+    { term:"Takut akan bayang-bayang sendiri",
+      meaning:"Haunted by one's own guilty conscience.",
+      bm:"Rasa takut dan gelisah kerana pernah berbuat salah.",
+      theme:"Penyesalan (Regret & Remorse)" },
+    { term:"Sesat di hujung jalan, balik ke pangkal jalan",
+      meaning:"Correct your path as soon as you realize you are wrong.",
+      bm:"Sekiranya terlanjur melakukan kesalahan, segeralah insaf dan bertaubat.",
+      theme:"Penyesalan (Regret & Remorse)" },
+    /* Daya Usaha / Kesungguhan (Perseverance & Diligence) */
+    { term:"Alah bisa tegal biasa",
+      meaning:"Practice makes perfect; difficulty fades with habit.",
+      bm:"Pekerjaan yang sukar akan menjadi mudah apabila sering dilakukan.",
+      theme:"Daya Usaha / Kesungguhan (Perseverance & Diligence)" },
+    { term:"Alang-alang berdawat biarlah hitam",
+      meaning:"If you start a task, complete it thoroughly.",
+      bm:"Jika mengerjakan sesuatu, janganlah separuh jalan.",
+      theme:"Daya Usaha / Kesungguhan (Perseverance & Diligence)" },
+    { term:"Belum suruh sudah pergi, belum panggil sudah datang",
+      meaning:"A proactive and highly initiative person.",
+      bm:"Orang yang sangat rajin dan cekap bekerja.",
+      theme:"Daya Usaha / Kesungguhan (Perseverance & Diligence)" },
+    { term:"Belakang parang kalau diasah lagikan tajam",
+      meaning:"Even someone slow can succeed with continuous effort and education.",
+      bm:"Jika berusaha dengan gigih, orang yang bodoh pun akan menjadi pandai.",
+      theme:"Daya Usaha / Kesungguhan (Perseverance & Diligence)" },
+    { term:"Malas berdayung, perahu hanyut",
+      meaning:"Laziness leads to drift and failure.",
+      bm:"Kejayaan tidak akan dicapai jika seseorang malas berusaha.",
+      theme:"Daya Usaha / Kesungguhan (Perseverance & Diligence)" },
+    /* Keberanian (Courage & Bravery) */
+    { term:"Berani kerana benar, takut kerana salah",
+      meaning:"Courage comes from being on the side of truth.",
+      bm:"Berani bertindak kerana berada di pihak yang benar.",
+      theme:"Keberanian (Courage & Bravery)" },
+    { term:"Berkata benarlah walaupun pahit",
+      meaning:"Speak the truth even if it is difficult or bitter to swallow.",
+      bm:"Berterus terang demi kebenaran walaupun menyakiti perasaan.",
+      theme:"Keberanian (Courage & Bravery)" },
+    { term:"Cacing yang hendak menjadi naga",
+      meaning:"A lowly person overreaching beyond their capabilities.",
+      bm:"Orang kecil atau hina yang berhasrat hendak bersaing dengan orang berkuasa.",
+      theme:"Keberanian (Courage & Bravery)" },
+    { term:"Membujur lalu melintang patah",
+      meaning:"Overcoming any obstacle that stands in the way.",
+      bm:"Menghadapi apa sahaja rintangan tanpa gentar.",
+      theme:"Keberanian (Courage & Bravery)" },
+    { term:"Pantang berundur sebelum berjuang",
+      meaning:"Never surrender before putting up a fight.",
+      bm:"Tidak berputus asa sebelum mencuba atau berusaha.",
+      theme:"Keberanian (Courage & Bravery)" },
+    /* Pemuafakatan / Bekerjasama (Cooperation & Agreement) */
+    { term:"Bagai aur dengan tebing",
+      meaning:"Mutual assistance and support.",
+      bm:"Saling membantu dan bekerjasama antara satu sama lain.",
+      theme:"Pemuafakatan / Bekerjasama (Cooperation & Agreement)" },
+    { term:"Bagai enau dalam belukar melepaskan pucuk masing-masing",
+      meaning:"Selfish behavior; each person looking out only for themselves.",
+      bm:"Mementingkan diri sendiri tanpa peduli orang lain.",
+      theme:"Pemuafakatan / Bekerjasama (Cooperation & Agreement)" },
+    { term:"Bulat air kerana pembentung, bulat manusia kerana muafakat",
+      meaning:"Unanimity achieved through consultation and consensus.",
+      bm:"Kata sepakat dicapai menerusi perbincangan atau mesyuarat.",
+      theme:"Pemuafakatan / Bekerjasama (Cooperation & Agreement)" },
+    { term:"Hati gajah sama dilapah, hati nyamuk sama dicecah",
+      meaning:"Fair sharing of both hardships and rewards.",
+      bm:"Pengagihan yang adil dan sama banyak, baik susah mahupun senang.",
+      theme:"Pemuafakatan / Bekerjasama (Cooperation & Agreement)" },
+    { term:"Ibarat telur sesangkak, pecah sebiji pecah semua",
+      meaning:"Solidarity where trouble for one means trouble for all.",
+      bm:"Hubungan muafakat yang sehidup semati dan bersatu padu.",
+      theme:"Pemuafakatan / Bekerjasama (Cooperation & Agreement)" },
+    /* Berhati-hati / Teliti / Berjimat Cermat (Prudence & Thrift) */
+    { term:"Berjalan pelihara kaki, bercakap pelihara lidah",
+      meaning:"Be mindful of your actions and guard your words.",
+      bm:"Melakukan sesuatu perkara dengan berhati-hati.",
+      theme:"Berhati-hati / Teliti / Berjimat Cermat (Prudence & Thrift)" },
+    { term:"Biar lambat asalkan selamat",
+      meaning:"Better late than sorry; quality and safety over speed.",
+      bm:"Melakukan kerja dengan cermat untuk hasil yang sempurna.",
+      theme:"Berhati-hati / Teliti / Berjimat Cermat (Prudence & Thrift)" },
+    { term:"Menarik rambut di dalam tepung",
+      meaning:"Resolving a delicate issue carefully without creating trouble for anyone.",
+      bm:"Bersikap teliti dan berhati-hati semasa menyelesaikan masalah.",
+      theme:"Berhati-hati / Teliti / Berjimat Cermat (Prudence & Thrift)" },
+    { term:"Sekali jalan terkena, dua kali jalan tahu",
+      meaning:"Once bitten, twice shy.",
+      bm:"Sekali tertipu akan menyebabkan kita lebih berhati-hati pada masa hadapan.",
+      theme:"Berhati-hati / Teliti / Berjimat Cermat (Prudence & Thrift)" },
+    { term:"Mencegah adalah lebih baik daripada mengubati",
+      meaning:"Prevention is better than cure.",
+      bm:"Menghindari perkara buruk lebih baik daripada merawatnya selepas berlaku.",
+      theme:"Berhati-hati / Teliti / Berjimat Cermat (Prudence & Thrift)" },
+    { term:"Mengukur baju di badan sendiri",
+      meaning:"Cut your coat according to your cloth; live within your means.",
+      bm:"Berbelanja atau bertindak mengikut kemampuan diri sendiri.",
+      theme:"Berhati-hati / Teliti / Berjimat Cermat (Prudence & Thrift)" },
+    /* Kepentingan Ilmu / Pendidikan (Knowledge & Education) */
+    { term:"Hanya jauhari mengenal manikam",
+      meaning:"Only an expert can truly appreciate value and skill in a field.",
+      bm:"Hanya orang pakar sahaja yang pandai menilai kelebihan sesuatu perkara.",
+      theme:"Kepentingan Ilmu / Pendidikan (Knowledge & Education)" },
+    { term:"Hendak belajar berenang dapatkan itik, hendak belajar memanjat dapatkan tupai",
+      meaning:"Learn skills directly from masters of the trade.",
+      bm:"Belajarlah daripada orang yang pakar dalam bidang tersebut.",
+      theme:"Kepentingan Ilmu / Pendidikan (Knowledge & Education)" },
+    { term:"Seperti ayam mematuk anak",
+      meaning:"Parental discipline meant for constructive guidance, not harm.",
+      bm:"Ibu bapa menasihati atau menghukum anak bertujuan mendidik, bukan memusnahkan.",
+      theme:"Kepentingan Ilmu / Pendidikan (Knowledge & Education)" },
+    { term:"Seperti katak di bawah tempurung",
+      meaning:"Ignorant or narrow-minded person with limited world view.",
+      bm:"Orang yang cetek ilmu pengetahuan kerana tidak terdedah kepada dunia luar.",
+      theme:"Kepentingan Ilmu / Pendidikan (Knowledge & Education)" },
+    /* Kecantikan (Beauty & Compatibility) */
+    { term:"Bagai bulan dipagari bintang / Emas baru disepuh",
+      meaning:"Exceedingly beautiful and radiant.",
+      bm:"Kelihatan sangat cantik dan berseri-seri.",
+      theme:"Kecantikan (Beauty & Compatibility)" },
+    { term:"Bagai cincin dengan permata",
+      meaning:"A perfect match.",
+      bm:"Pasangan yang sama cantik dan amat padan.",
+      theme:"Kecantikan (Beauty & Compatibility)" },
+    { term:"Bagai pinang dibelah dua / Bagai kunyit dengan kapur",
+      meaning:"Well-matched pair.",
+      bm:"Pasangan yang amat sepadan dan secocok.",
+      theme:"Kecantikan (Beauty & Compatibility)" },
+    { term:"Rumah buruk disapu cat",
+      meaning:"An older woman heavily made up to look young.",
+      bm:"Perempuan tua yang suka bersolek secara berlebihan.",
+      theme:"Kecantikan (Beauty & Compatibility)" },
+    /* Nasib Malang (Misfortune) */
+    { term:"Antan patah lesung hilang / Sudah jatuh ditimpa tangga",
+      meaning:"Misfortunes coming all at once (When it rains, it pours).",
+      bm:"Kemalangan atau kesusahan yang dialami bertimpa-timpa.",
+      theme:"Nasib Malang (Misfortune)" },
+    { term:"Bagai kerakap tumbuh di batu, hidup segan mati tak mau",
+      meaning:"Barely surviving in dire poverty and hardship.",
+      bm:"Keadaan hidup yang sangat miskin, susah, dan melarat.",
+      theme:"Nasib Malang (Misfortune)" },
+    { term:"Tanam padi tumbuhnya lalang",
+      meaning:"Hard work yielding bad or unexpected results due to ill luck.",
+      bm:"Bernasib malang kerana segala usaha tidak membuahkan hasil seperti diharapkan.",
+      theme:"Nasib Malang (Misfortune)" },
+    { term:"Tiada beban batu digalas",
+      meaning:"Unnecessarily taking on troubles or burdens.",
+      bm:"Tiada masalah tetapi sengaja mencari atau menambah masalah.",
+      theme:"Nasib Malang (Misfortune)" },
+    { term:"Untung sepanjang jalan, malang sekelip mata",
+      meaning:"Good fortune takes time, but tragedy strikes in a split second.",
+      bm:"Kemalangan boleh berlaku secara tiba-tiba walaupun sentiasa bernasib baik.",
+      theme:"Nasib Malang (Misfortune)" }
+  ],
+
+  "Penanda Wacana": [
+    { term:"Pada mulanya",          meaning:"At first, in the beginning", group:"open" },
+    { term:"Pertama sekali",        meaning:"First of all", group:"open" },
+    { term:"Selain itu",            meaning:"Besides that", group:"add" },
+    { term:"Di samping itu",        meaning:"In addition to that", group:"add" },
+    { term:"Tambahan pula",         meaning:"Furthermore, what is more", group:"add" },
+    { term:"Seterusnya",            meaning:"Next, following that" },
+    { term:"Oleh itu",              meaning:"Therefore", group:"cause" },
+    { term:"Oleh sebab itu",        meaning:"Because of that", group:"cause" },
+    { term:"Justeru",               meaning:"Hence, for that very reason", group:"cause" },
+    { term:"Lantaran itu",          meaning:"As a result of that", group:"cause" },
+    { term:"Namun begitu",          meaning:"Nevertheless", group:"contrast" },
+    { term:"Walau bagaimanapun",    meaning:"However, in any case", group:"contrast" },
+    { term:"Sebaliknya",            meaning:"On the contrary, instead", group:"contrast" },
+    { term:"Sementara itu",         meaning:"Meanwhile", group:"time" },
+    { term:"Dalam pada itu",        meaning:"In the meantime", group:"time" },
+    { term:"Sebagai contoh",        meaning:"For example", group:"example" },
+    { term:"Misalnya",              meaning:"For instance", group:"example" },
+    { term:"Bak kata pepatah",      meaning:"As the proverb says" },
+    { term:"Sehubungan itu",        meaning:"In connection with that" },
+    { term:"Dengan itu",            meaning:"Thus, with that" },
+    { term:"Jelaslah bahawa",       meaning:"It is clear that" },
+    { term:"Kesimpulannya",         meaning:"In conclusion", group:"close" },
+    { term:"Rumusannya",            meaning:"In summary", group:"close" },
+    { term:"Akhir sekali",          meaning:"Lastly, finally", group:"close" }
+  ]
+
+};
+
+/* ╔══════════════════════════════════════════════════════════════════════╗
+   ║  END OF WORD LISTS — no need to edit anything below                  ║
+   ╚══════════════════════════════════════════════════════════════════════╝ */
+
+
+/* ─────────── helpers ─────────── */
+const $ = s => document.querySelector(s);
+const rand = (a,b) => a + Math.random()*(b-a);
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+const CATS = Object.keys(WORD_DATA);
+const HUES = [205, 272, 148, 32, 322, 95, 178, 250];
+const catHue = c => HUES[CATS.indexOf(c) % HUES.length];
+const catCss = (c,l) => 'hsl('+catHue(c)+' 70% '+(l||60)+'%)';
+const catHex = (c,l) => { const t=document.createElement('canvas').getContext('2d');
+  t.fillStyle = catCss(c,l); return t.fillStyle; };
+
+/* ─────────── settings ─────────── */
+const S = { cats:CATS.slice(), targets:3, roundLen:10, timeLimit:300,
+            guards:4, hint:true, speak:true, sfx:true };
+const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+if(isTouch) document.body.classList.add('touch');
+
+function poolItems(){ const o=[]; S.cats.forEach(c=>WORD_DATA[c].forEach(i=>o.push({...i,cat:c}))); return o; }
+
+/* ─────────── menu wiring ─────────── */
+const catChips = $('#catChips');
+CATS.forEach(c=>{
+  const b=document.createElement('button');
+  b.className='chip sel'; b.dataset.v=c;
+  b.innerHTML='<span class="dot" style="background:'+catCss(c)+'"></span>'+esc(c)+
+              ' <span class="cnt">'+WORD_DATA[c].length+'</span>';
+  b.onclick=()=>{
+    b.classList.toggle('sel');
+    const sel=[...catChips.querySelectorAll('.chip.sel')];
+    if(!sel.length){ b.classList.add('sel'); return; }
+    S.cats=sel.map(x=>x.dataset.v); updatePool();
+  };
+  catChips.appendChild(b);
+});
+function radio(sel,key){
+  const box=$(sel);
+  box.querySelectorAll('.chip').forEach(b=>{
+    b.onclick=()=>{ box.querySelectorAll('.chip').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel'); S[key]=Number(b.dataset.v); updatePool(); };
+  });
+}
+radio('#diffChips','targets'); radio('#lenChips','roundLen'); radio('#timeChips','timeLimit');
+radio('#guardChips','guards');
+$('#optHint').onchange  = e => S.hint  = e.target.checked;
+$('#optSpeak').onchange = e => S.speak = e.target.checked;
+$('#optSfx').onchange   = e => S.sfx   = e.target.checked;
+
+function updatePool(){
+  const n=poolItems().length, need=S.targets+1;
+  const short = S.cats.some(c => WORD_DATA[c].length < S.targets);
+  $('#poolInfo').innerHTML = n+' phrases selected'+
+    (n<need ? '  ⚠ need at least '+need : '')+
+    (short ? '  ⚠ a selected category has fewer phrases than the difficulty needs' : '');
+  $('#startBtn').disabled = n < need;
+}
+updatePool();
+
+/* ─────────── audio ─────────── */
+let actx=null;
+function ac(){ if(!actx){ try{ actx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return actx; }
+function blip(f,d,type='square',v=.07,to=null){
+  if(!S.sfx) return; const c=ac(); if(!c) return;
+  const o=c.createOscillator(), g=c.createGain();
+  o.type=type; o.frequency.setValueAtTime(f,c.currentTime);
+  if(to) o.frequency.exponentialRampToValueAtTime(to,c.currentTime+d);
+  g.gain.setValueAtTime(v,c.currentTime);
+  g.gain.exponentialRampToValueAtTime(.0001,c.currentTime+d);
+  o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime+d);
+}
+const sndShoot=()=>blip(720,.07,'square',.05,180);
+const sndGood =()=>{ blip(660,.09,'triangle',.09); setTimeout(()=>blip(990,.14,'triangle',.09),80); };
+const sndBad  =()=>blip(180,.26,'sawtooth',.07,70);
+const sndEnd  =()=>{ [523,659,784,1046].forEach((f,i)=>setTimeout(()=>blip(f,.18,'triangle',.08),i*110)); };
+const sndStep =()=>blip(95,.05,'sine',.025);
+const sndEShot=()=>blip(300,.12,'sawtooth',.035,140);
+const sndHurt =()=>blip(150,.18,'square',.06,80);
+const sndKill =()=>{ blip(420,.07,'square',.06); setTimeout(()=>blip(220,.14,'square',.05,90),60); };
+const sndBuy  =()=>{ [660,880,1180].forEach((f,i)=>setTimeout(()=>blip(f,.12,'triangle',.07),i*80)); };
+const sndDeny =()=>blip(160,.16,'square',.05,120);
+
+/* ─────────── speech ─────────── */
+let voice=null;
+function loadVoice(){
+  if(!window.speechSynthesis) return;
+  const vs=speechSynthesis.getVoices(); if(!vs.length) return;
+  voice = vs.find(v=>/^ms(-|_|$)/i.test(v.lang))
+       || vs.find(v=>/^id(-|_|$)/i.test(v.lang))
+       || vs.find(v=>/malay|melayu/i.test(v.name)) || null;
+}
+if(window.speechSynthesis){ loadVoice(); speechSynthesis.onvoiceschanged=loadVoice; }
+function speak(text, btnSel){
+  if(!window.speechSynthesis) return;
+  try{
+    speechSynthesis.cancel();
+    // "Hitam macam arang / buntut kuali" is read aloud as "Hitam macam arang" —
+    // the slash alternatives are for the eye, not the ear.
+    const say = String(text).replace(/\s*\/.*$/,'').trim() || String(text);
+    const u=new SpeechSynthesisUtterance(say);
+    if(voice){ u.voice=voice; u.lang=voice.lang; } else u.lang='ms-MY';
+    u.rate=.82;
+    const btn = btnSel ? $(btnSel) : null;
+    if(btn){ btn.classList.add('speaking'); u.onend=u.onerror=()=>btn.classList.remove('speaking'); }
+    speechSynthesis.speak(u);
+  }catch(e){}
+}
+$('#speakBtn').onclick = e => { e.stopPropagation(); if(G.current) speak(G.current.term,'#speakBtn'); };
+
+/* ═══════════════ THREE.JS ═══════════════ */
+let renderer, scene, camera, raycaster, gun, ringPool=[];
+let yaw=0, pitch=0, recoil=0, bob=0;
+const targets=[];        // answer panels currently live (all rooms)
+const colliders=[];      // wall meshes — block shots
+const walkable=[];       // AABB regions {x0,x1,z0,z1}
+const rooms=[];          // {cat, cx, light, sign}
+const keys={};
+
+const ROOM_W=14, ROOM_D=14, ROOM_HW=ROOM_W/2, HUB_D=11, WALL_H=6, T=.6;
+const DOOR_HW=2.5, SPACING=18, PLAYER_R=.45, EYE=1.7;
+let hubHX=27, spawn={x:0,z:HUB_D*.55};
+
+function initThree(){
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  document.body.insertBefore(renderer.domElement, document.body.firstChild);
+
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x05080f);
+  scene.fog=new THREE.Fog(0x05080f, 18, 62);
+
+  camera=new THREE.PerspectiveCamera(75, innerWidth/innerHeight, .08, 300);
+  camera.rotation.order='YXZ';
+  camera.position.set(spawn.x, EYE, spawn.z);
+  scene.add(camera);
+
+  scene.add(new THREE.HemisphereLight(0x7ea8e8, 0x0d1524, .75));
+  const dl=new THREE.DirectionalLight(0xffffff,.32); dl.position.set(6,18,10); scene.add(dl);
+
+  buildGun();
+  raycaster=new THREE.Raycaster();
+
+  for(let i=0;i<12;i++){
+    const r=new THREE.Mesh(new THREE.RingGeometry(.4,.55,28),
+      new THREE.MeshBasicMaterial({color:0x31d98b,transparent:true,opacity:0,side:THREE.DoubleSide}));
+    r.visible=false; scene.add(r); ringPool.push({mesh:r,t:0});
+  }
+  for(let i=0;i<40;i++){
+    const s=new THREE.Mesh(new THREE.SphereGeometry(.15,8,6),
+      new THREE.MeshBasicMaterial({color:0xff7a4d}));
+    s.visible=false; scene.add(s);
+    shotPool.push({mesh:s, vx:0, vy:0, vz:0, life:0});
+  }
+  for(let i=0;i<14;i++){
+    const b=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,1,6),
+      new THREE.MeshBasicMaterial({color:0x3ea6ff, transparent:true, opacity:0}));
+    b.visible=false; scene.add(b); beamPool.push({mesh:b, t:0});
+  }
+
+  addEventListener('resize',()=>{
+    camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix();
+    renderer.setSize(innerWidth,innerHeight);
+  });
+}
+
+function buildGun(){
+  gun=new THREE.Group();
+  const gm=new THREE.MeshLambertMaterial({color:0x2d3a55});
+  const gm2=new THREE.MeshLambertMaterial({color:0x3ea6ff});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(.16,.16,.85),gm); body.position.z=-.3; gun.add(body);
+  const bar=new THREE.Mesh(new THREE.CylinderGeometry(.045,.055,.6,12),gm);
+  bar.rotation.x=Math.PI/2; bar.position.z=-.95; gun.add(bar);
+  const tip=new THREE.Mesh(new THREE.TorusGeometry(.085,.022,8,16),gm2);
+  tip.position.z=-1.2; tip.__accent=true; gun.add(tip);
+  const grip=new THREE.Mesh(new THREE.BoxGeometry(.13,.36,.16),gm);
+  grip.position.set(0,-.22,.02); grip.rotation.x=.22; gun.add(grip);
+  const sight=new THREE.Mesh(new THREE.BoxGeometry(.05,.07,.16),gm2);
+  sight.position.set(0,.13,-.5); sight.__accent=true; gun.add(sight);
+  gun.position.set(.34,-.30,-.55); gun.rotation.y=-.05;
+  camera.add(gun);
+}
+
+/* ── level ── */
+let levelGroup=null;
+function wallBox(cx,cz,sx,sz,mat){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(sx,WALL_H,sz), mat);
+  m.position.set(cx, WALL_H/2, cz);
+  levelGroup.add(m); colliders.push(m); return m;
+}
+
+function buildLevel(){
+  if(levelGroup){ scene.remove(levelGroup); disposeTree(levelGroup); }
+  levelGroup=new THREE.Group(); scene.add(levelGroup);
+  colliders.length=0; walkable.length=0; rooms.length=0;
+
+  const cats=S.cats, n=cats.length;
+  hubHX = Math.max(20, (n-1)/2*SPACING + ROOM_HW + 3);
+  spawn = { x:0, z:HUB_D*.6 };
+
+  const wallMat=new THREE.MeshLambertMaterial({color:0x1a2742});
+  const floorMat=new THREE.MeshLambertMaterial({color:0x0e1728});
+
+  // floor spans hub + rooms
+  const fw=hubHX*2+4, fd=HUB_D+ROOM_D+6;
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(fw,fd), floorMat);
+  floor.rotation.x=-Math.PI/2;
+  floor.position.set(0,0,(HUB_D-ROOM_D)/2);
+  levelGroup.add(floor);
+  const grid=new THREE.GridHelper(Math.max(fw,fd),Math.round(Math.max(fw,fd)/2),0x24375c,0x162239);
+  grid.position.set(0,.02,(HUB_D-ROOM_D)/2); levelGroup.add(grid);
+
+  // hub walkable + walls
+  walkable.push({x0:-hubHX, x1:hubHX, z0:.3, z1:HUB_D});
+  wallBox(0, HUB_D+T/2, hubHX*2+T*2, T, wallMat);          // back
+  wallBox(-hubHX-T/2, HUB_D/2, T, HUB_D+T, wallMat);        // west
+  wallBox( hubHX+T/2, HUB_D/2, T, HUB_D+T, wallMat);        // east
+
+  // rooms
+  const doorGaps=[];
+  cats.forEach((cat,i)=>{
+    const cx=(i-(n-1)/2)*SPACING;
+    doorGaps.push([cx-DOOR_HW, cx+DOOR_HW]);
+
+    walkable.push({x0:cx-ROOM_HW, x1:cx+ROOM_HW, z0:-ROOM_D, z1:-.3});
+    walkable.push({x0:cx-DOOR_HW, x1:cx+DOOR_HW, z0:-.4, z1:.4});
+
+    wallBox(cx-ROOM_HW-T/2, -ROOM_D/2, T, ROOM_D+T, wallMat);
+    wallBox(cx+ROOM_HW+T/2, -ROOM_D/2, T, ROOM_D+T, wallMat);
+    wallBox(cx, -ROOM_D-T/2, ROOM_W+T*2, T, wallMat);
+
+    // room accent rug + light
+    const hex=catHex(cat,28);
+    const rug=new THREE.Mesh(new THREE.PlaneGeometry(ROOM_W-1.4, ROOM_D-1.4),
+      new THREE.MeshLambertMaterial({color:hex}));
+    rug.rotation.x=-Math.PI/2; rug.position.set(cx,.03,-ROOM_D/2); levelGroup.add(rug);
+
+    const lamp=new THREE.PointLight(catHex(cat,60), .9, 26, 2);
+    lamp.position.set(cx, 4.4, -ROOM_D/2); levelGroup.add(lamp);
+    const bulb=new THREE.Mesh(new THREE.SphereGeometry(.22,10,8),
+      new THREE.MeshBasicMaterial({color:catHex(cat,72)}));
+    bulb.position.copy(lamp.position); levelGroup.add(bulb);
+
+    // door sign facing the hub
+    const sign=new THREE.Mesh(new THREE.PlaneGeometry(5.4,1.25),
+      new THREE.MeshBasicMaterial({map:makeSignTex(cat), transparent:true}));
+    sign.position.set(cx, 4.35, .36); levelGroup.add(sign);
+
+    // glowing door frame
+    const frameMat=new THREE.MeshBasicMaterial({color:catHex(cat,58)});
+    const fr=new THREE.Mesh(new THREE.BoxGeometry(DOOR_HW*2+.5,.16,.16),frameMat);
+    fr.position.set(cx,3.4,.32); levelGroup.add(fr);
+
+    rooms.push({cat, cx});
+  });
+
+  // north wall of hub, with gaps at the doors
+  doorGaps.sort((a,b)=>a[0]-b[0]);
+  let cur=-hubHX-T;
+  doorGaps.forEach(([a,b])=>{
+    if(a>cur) wallBox((cur+a)/2, 0, a-cur, T, wallMat);
+    cur=b;
+  });
+  if(hubHX+T>cur) wallBox((cur+hubHX+T)/2, 0, hubHX+T-cur, T, wallMat);
+
+  buildTerminal();
+}
+
+function disposeTree(root){
+  root.traverse(o=>{
+    if(o.geometry) o.geometry.dispose();
+    if(o.material){ if(o.material.map) o.material.map.dispose(); o.material.dispose(); }
+  });
+}
+
+/* ── textures ── */
+function makeSignTex(text){
+  const W=768,H=176,c=document.createElement('canvas'); c.width=W;c.height=H;
+  const x=c.getContext('2d');
+  x.fillStyle='rgba(6,10,20,.88)'; roundRect(x,4,4,W-8,H-8,22); x.fill();
+  x.lineWidth=6; x.strokeStyle=catCss(text,58); roundRect(x,4,4,W-8,H-8,22); x.stroke();
+  x.fillStyle='#ffffff'; x.textAlign='center'; x.textBaseline='middle';
+  let size=64; x.font='800 '+size+'px "Segoe UI",system-ui,Arial,sans-serif';
+  while(x.measureText(text).width > W-70 && size>22){ size-=3;
+    x.font='800 '+size+'px "Segoe UI",system-ui,Arial,sans-serif'; }
+  x.fillText(text, W/2, H/2+2);
+  const t=new THREE.CanvasTexture(c); t.anisotropy=4; return t;
+}
+function makeTex(text, state){
+  const W=640,H=320,c=document.createElement('canvas'); c.width=W;c.height=H;
+  const x=c.getContext('2d');
+  const bg  = state==='good'?'#0e5137' : state==='bad'?'#5c1522' : '#0d1b33';
+  const edge= state==='good'?'#31d98b' : state==='bad'?'#ff5a6e' : '#3ea6ff';
+  x.fillStyle=bg; roundRect(x,10,10,W-20,H-20,26); x.fill();
+  x.lineWidth=8; x.strokeStyle=edge; roundRect(x,10,10,W-20,H-20,26); x.stroke();
+  x.strokeStyle=edge; x.lineWidth=6; x.globalAlpha=.85;
+  [[38,38,1,1],[W-38,38,-1,1],[38,H-38,1,-1],[W-38,H-38,-1,-1]].forEach(([px,py,sx,sy])=>{
+    x.beginPath(); x.moveTo(px+34*sx,py); x.lineTo(px,py); x.lineTo(px,py+34*sy); x.stroke(); });
+  x.globalAlpha=1;
+  x.fillStyle='#fff'; x.textAlign='center'; x.textBaseline='middle';
+  let size=48, lines=[];
+  for(; size>=22; size-=3){
+    x.font='700 '+size+'px "Segoe UI",system-ui,Arial,sans-serif';
+    lines=wrap(x,text,W-90);
+    if(lines.length*size*1.22 <= H-90) break;
+  }
+  x.font='700 '+size+'px "Segoe UI",system-ui,Arial,sans-serif';
+  const lh=size*1.22, y0=H/2-((lines.length-1)*lh)/2;
+  lines.forEach((ln,i)=>x.fillText(ln,W/2,y0+i*lh));
+  const t=new THREE.CanvasTexture(c); t.anisotropy=4; return t;
+}
+function roundRect(x,px,py,w,h,r){
+  x.beginPath(); x.moveTo(px+r,py); x.lineTo(px+w-r,py); x.quadraticCurveTo(px+w,py,px+w,py+r);
+  x.lineTo(px+w,py+h-r); x.quadraticCurveTo(px+w,py+h,px+w-r,py+h);
+  x.lineTo(px+r,py+h); x.quadraticCurveTo(px,py+h,px,py+h-r);
+  x.lineTo(px,py+r); x.quadraticCurveTo(px,py,px+r,py); x.closePath();
+}
+function wrap(x,text,max){
+  const words=text.split(' '), out=[]; let line='';
+  words.forEach(w=>{ const t=line?line+' '+w:w;
+    if(x.measureText(t).width>max && line){ out.push(line); line=w; } else line=t; });
+  if(line) out.push(line); return out;
+}
+function setTex(mesh,text,state){
+  if(mesh.material.map) mesh.material.map.dispose();
+  mesh.material.map=makeTex(text,state); mesh.material.needsUpdate=true;
+}
+
+/* ── answer panels ── */
+const SLOTS = {
+  3:[['W',.5],['N',.5],['E',.5]],
+  4:[['W',.5],['N',.28],['N',.72],['E',.5]],
+  5:[['W',.38],['W',.72],['N',.5],['E',.38],['E',.72]],
+  6:[['W',.3],['W',.68],['N',.28],['N',.72],['E',.3],['E',.68]]
+};
+function slotPose(cx, wall, t){
+  const y=2.3;
+  if(wall==='N') return { x:cx-ROOM_HW+ROOM_W*t, y, z:-ROOM_D+.4, ry:0 };
+  if(wall==='W') return { x:cx-ROOM_HW+.4, y, z:-ROOM_D*t-1.2, ry:Math.PI/2 };
+  return               { x:cx+ROOM_HW-.4, y, z:-ROOM_D*t-1.2, ry:-Math.PI/2 };
+}
+function clearTargets(){
+  targets.forEach(t=>{ scene.remove(t.mesh);
+    if(t.mesh.material.map) t.mesh.material.map.dispose();
+    t.mesh.material.dispose(); t.mesh.geometry.dispose(); });
+  targets.length=0;
+}
+function addPanel(cx, slot, meaning, correct, cat){
+  const p=slotPose(cx, slot[0], slot[1]);
+  const mesh=new THREE.Mesh(new THREE.PlaneGeometry(3.4,1.7),
+    new THREE.MeshBasicMaterial({map:makeTex(meaning,'idle'), transparent:true}));
+  mesh.position.set(p.x,p.y,p.z); mesh.rotation.y=p.ry;
+  scene.add(mesh);
+  targets.push({mesh, opt:{meaning}, correct, cat, dead:false});
+}
+
+/* populate every room: the right room gets the real options, others get decoys */
+function spawnRound(item, opts, correctIdx){
+  clearTargets();
+  const n=S.targets, slots=SLOTS[n]||SLOTS[3];
+  rooms.forEach(rm=>{
+    if(rm.cat===item.cat){
+      opts.forEach((o,i)=>addPanel(rm.cx, slots[i], o.meaning, i===correctIdx, rm.cat));
+    } else {
+      const others=WORD_DATA[rm.cat].filter(x=>x.meaning!==item.meaning);
+      const decoys=shuffle(others).slice(0,n);
+      decoys.forEach((d,i)=>addPanel(rm.cx, slots[i], d.meaning, false, rm.cat));
+    }
+  });
+}
+
+function popRing(pos,color){
+  const r=ringPool.find(x=>!x.mesh.visible)||ringPool[0];
+  r.mesh.position.copy(pos); r.mesh.material.color.setHex(color);
+  r.mesh.visible=true; r.t=0;
+}
+
+/* ═══════════════ WEAPONS ═══════════════ */
+/* Each weapon is a different tool, not a bigger number. Buying one costs score.
+   NOTE: only the centre of the crosshair can trigger an answer panel — pellets and
+   pierce affect drones only — so a wide weapon can never hit two answers at once. */
+const WEAPONS=[
+  { id:'blaster',  name:'Blaster',        cost:0,    dmg:1, cool:.30, pellets:1, spread:0,    range:70, pierce:1,
+    color:0x3ea6ff, desc:'Standard issue. Three shots to down a drone, no surprises.' },
+  { id:'repeater', name:'Pulse Repeater', cost:300,  dmg:1, cool:.10, pellets:1, spread:.022, range:45, pierce:1,
+    color:0x31d98b, desc:'Fires three times as fast but wanders a little. Best when several drones rush you at once.' },
+  { id:'scatter',  name:'Scatter Gun',    cost:650,  dmg:1, cool:.66, pellets:6, spread:.13,  range:16, pierce:1,
+    color:0xffc94d, desc:'Six pellets in a cone. Drops a drone in one shot up close, does almost nothing past the doorway.' },
+  { id:'lance',    name:'Ion Lance',      cost:1100, dmg:4, cool:.90, pellets:1, spread:0,    range:95, pierce:3,
+    color:0xc9a6ff, desc:'Slow and heavy. Punches straight through up to three drones lined up across the hub.' }
+];
+const WSTAT=[['Damage',w=>w.dmg*w.pellets/6],['Fire rate',w=>Math.min(1,.10/w.cool)],
+             ['Range',w=>w.range/95],['Pierce',w=>w.pierce/3]];
+const W={ owned:['blaster'], cur:0, cool:0 };
+const weaponById = id => WEAPONS.findIndex(w=>w.id===id);
+
+/* ═══════════════ ENEMIES ═══════════════ */
+const enemies=[], eshots=[], beams=[];
+let terminal=null, shotPool=[], beamPool=[];
+const ENEMY_HP=3, ENEMY_DMG=9, ENEMY_SHOT_SPD=15;
+
+function makeEnemy(x,y,z){
+  const body=new THREE.Mesh(new THREE.OctahedronGeometry(.62,0),
+    new THREE.MeshLambertMaterial({color:0xb03246}));
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(.78,.07,8,18),
+    new THREE.MeshBasicMaterial({color:0xff5a6e}));
+  const eye=new THREE.Mesh(new THREE.SphereGeometry(.17,10,8),
+    new THREE.MeshBasicMaterial({color:0xffd36e}));
+  body.position.set(x,y,z); ring.position.set(x,y,z); eye.position.set(x,y,z);
+  ring.rotation.x=Math.PI/2;
+  scene.add(body); scene.add(ring); scene.add(eye);
+  return { mesh:body, ring, eye, hp:ENEMY_HP, homeX:x, baseY:y, baseZ:z,
+           ph:rand(0,6.28), sway:rand(2.2,4.2), fire:rand(.8,2.4),
+           dead:false, deadT:0, flash:0 };
+}
+function clearEnemies(){
+  enemies.forEach(e=>{ [e.mesh,e.ring,e.eye].forEach(m=>{
+    scene.remove(m); m.geometry.dispose(); m.material.dispose(); }); });
+  enemies.length=0;
+  eshots.forEach(s=>s.mesh.visible=false); eshots.length=0;
+}
+/* drones are placed in the hub in front of the doors; the door you actually
+   need is always guarded, so there is a path to clear rather than a maze */
+function spawnEnemies(targetCat){
+  clearEnemies();
+  const n=S.guards|0;
+  if(!n || !rooms.length) return;
+  const target=rooms.find(r=>r.cat===targetCat)||rooms[0];
+  const picks=[];
+  picks.push(target);
+  if(n>=4) picks.push(target);
+  while(picks.length<n) picks.push(rooms[Math.floor(Math.random()*rooms.length)]);
+  picks.slice(0,n).forEach((rm,i)=>{
+    const x=rm.cx+rand(-3.4,3.4);
+    const z=rand(1.6,4.8)+ (i%2)*1.1;
+    enemies.push(makeEnemy(x, rand(1.5,2.8), z));
+  });
+}
+function popBeam(from,to,color){
+  const b=beamPool.find(x=>!x.mesh.visible)||beamPool[0];
+  const dx=to.x-from.x, dy=to.y-from.y, dz=to.z-from.z;
+  const len=Math.max(.1,Math.hypot(dx,dy,dz));
+  b.mesh.material.color.setHex(color);
+  b.mesh.position.set(from.x+dx/2, from.y+dy/2, from.z+dz/2);
+  b.mesh.scale.set(1,len,1);
+  b.mesh.lookAt(to.x,to.y,to.z);
+  b.mesh.rotateX(Math.PI/2);
+  b.mesh.visible=true; b.t=0;
+}
+function enemyFire(e){
+  const s=shotPool.find(x=>!x.mesh.visible);
+  if(!s) return;
+  const dx=camera.position.x-e.mesh.position.x;
+  const dy=(camera.position.y-.15)-e.mesh.position.y;
+  const dz=camera.position.z-e.mesh.position.z;
+  const L=Math.max(.001,Math.hypot(dx,dy,dz));
+  const j=.055;
+  s.mesh.position.copy(e.mesh.position);
+  s.vx=(dx/L+rand(-j,j))*ENEMY_SHOT_SPD;
+  s.vy=(dy/L+rand(-j,j))*ENEMY_SHOT_SPD;
+  s.vz=(dz/L+rand(-j,j))*ENEMY_SHOT_SPD;
+  s.life=3.2; s.mesh.visible=true;
+  eshots.push(s);
+  sndEShot();
+}
+/* the player is only exposed while in the hub — the wall shields the rooms,
+   so reading the answers is never done under fire */
+const playerExposed = () => camera.position.z > -0.2;
+
+function damagePlayer(n){
+  if(G.invuln>0 || !G.running) return;
+  G.hp=Math.max(0,G.hp-n);
+  G.hurtT=0; G.regenWait=3.2;
+  $('#flash').classList.add('hurt');
+  clearTimeout(damagePlayer._h);
+  damagePlayer._h=setTimeout(()=>$('#flash').classList.remove('hurt'),260);
+  sndHurt(); updateHUD();
+  if(G.hp<=0) downPlayer();
+}
+function downPlayer(){
+  G.downs++; G.score=Math.max(0,G.score-50); G.streak=0;
+  G.invuln=2.4; G.hp=100;
+  toast('DOWNED  −50','#ff5a6e');
+  updateHUD();
+  fadeTo(()=>{ toHub(); });
+}
+function killEnemy(e){
+  e.dead=true; e.deadT=0;
+  G.kills++; G.score+=15;
+  popRing(e.mesh.position,0xffc94d);
+  sndKill(); updateHUD();
+}
+
+/* ═══════════════ ARMOURY TERMINAL ═══════════════ */
+function buildTerminal(){
+  const g=new THREE.Group();
+  const base=new THREE.Mesh(new THREE.BoxGeometry(1.7,1.0,1.1),
+    new THREE.MeshLambertMaterial({color:0x24324d}));
+  base.position.y=.5; g.add(base);
+  const screen=new THREE.Mesh(new THREE.BoxGeometry(1.5,.9,.12),
+    new THREE.MeshBasicMaterial({color:0x3ea6ff}));
+  screen.position.set(0,1.35,.12); screen.rotation.x=-.32; g.add(screen);
+  const post=new THREE.Mesh(new THREE.CylinderGeometry(.09,.09,1.0,8),
+    new THREE.MeshLambertMaterial({color:0x24324d}));
+  post.position.y=1.0; g.add(post);
+  const orb=new THREE.Mesh(new THREE.SphereGeometry(.26,12,10),
+    new THREE.MeshBasicMaterial({color:0xffc94d}));
+  orb.position.y=2.35; g.add(orb);
+  const lamp=new THREE.PointLight(0xffc94d,.85,14,2); lamp.position.y=2.35; g.add(lamp);
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(3.6,.85),
+    new THREE.MeshBasicMaterial({map:makeSignTex('ARMOURY'), transparent:true}));
+  sign.position.set(0,3.15,0); g.add(sign);
+  // off to one side of the hub: close enough to reach between questions,
+  // far enough that its prompt is not on screen every time you respawn
+  const tz=HUB_D-2.2, tx=-Math.min(13, Math.max(7, hubHX-5));
+  g.position.set(tx,0,tz);
+  levelGroup.add(g);
+  terminal={ grp:g, orb, x:tx, z:tz };
+}
+/* true only when the player is standing inside that category's room */
+function inRoom(cat){
+  const rm=rooms.find(r=>r.cat===cat);
+  if(!rm) return false;
+  return camera.position.z < -0.3 && Math.abs(camera.position.x-rm.cx) <= ROOM_HW;
+}
+const nearTerminal = () => terminal &&
+  Math.hypot(camera.position.x-terminal.x, camera.position.z-terminal.z) < 3.4;
+
+/* ═══════════════ GAME STATE ═══════════════ */
+const G={ running:false, paused:false, shopping:false, queue:[], idx:0, current:null,
+  score:0, spent:0, streak:0, bestStreak:0, correct:0, wrong:0,
+  hp:100, invuln:0, regenWait:0, kills:0, downs:0,
+  timeLeft:0, log:[], locked:false, missedItems:[] };
+const ACTIVE = () => G.running && !G.paused && !G.shopping;
+
+function buildQueue(src){
+  let p=shuffle(src||poolItems());
+  if(S.roundLen>0) p=p.slice(0,S.roundLen);
+  return p;
+}
+function makeOptions(item){
+  const all=poolItems();
+  // a phrase is unusable as a wrong answer if it means the same thing,
+  // shares a synonym group, or sits in the same theme
+  const clashes = x => x.meaning===item.meaning ||
+    (item.group && x.group===item.group) || (item.theme && x.theme===item.theme);
+  const sameCat=all.filter(x=>x.cat===item.cat && x.term!==item.term);
+  let cands=sameCat.filter(x=>!clashes(x));
+  if(cands.length < S.targets-1){
+    const extra=all.filter(x=>x.term!==item.term && !clashes(x) && cands.indexOf(x)<0);
+    cands=cands.concat(shuffle(extra));
+  }
+  const wrongs=shuffle(cands).slice(0,S.targets-1);
+  const opts=shuffle(wrongs.concat([item]));
+  return { opts, correctIdx:opts.indexOf(item) };
+}
+
+function nextQuestion(){
+  if(G.idx>=G.queue.length){ endRound(); return; }
+  G.current=G.queue[G.idx];
+  const {opts,correctIdx}=makeOptions(G.current);
+  spawnRound(G.current,opts,correctIdx);
+  $('#catTag').textContent = S.hint ? ('Find in: '+G.current.cat) : 'Which room?';
+  $('#phraseText').textContent = G.current.term;
+  $('#progV').textContent = (G.idx+1)+' / '+G.queue.length;
+  spawnEnemies(G.current.cat);
+  G.locked=false;
+  if(S.speak) setTimeout(()=>speak(G.current.term,'#speakBtn'),160);
+}
+
+function toHub(){
+  camera.position.set(spawn.x, EYE, spawn.z);
+  yaw=0; pitch=0;
+}
+function fadeTo(fn){
+  const f=$('#fade'); f.classList.add('on');
+  setTimeout(()=>{ fn(); f.classList.remove('on'); },230);
+}
+
+function toast(msg,color){
+  const t=$('#toast'); t.textContent=msg; t.style.color=color; t.classList.add('show');
+  clearTimeout(toast._h); toast._h=setTimeout(()=>t.classList.remove('show'),1100);
+}
+
+function hitTarget(tg){
+  if(G.locked||tg.dead) return;
+  G.locked=true; tg.dead=true;
+  const rightRoom = tg.cat===G.current.cat;
+
+  if(tg.correct){
+    G.streak++; G.bestStreak=Math.max(G.bestStreak,G.streak); G.correct++;
+    G.score += 100 + Math.min(G.streak-1,10)*10;
+    setTex(tg.mesh,tg.opt.meaning,'good'); popRing(tg.mesh.position,0x31d98b);
+    sndGood(); toast(G.streak>=3?'CORRECT ×'+G.streak:'CORRECT!','#31d98b');
+    G.log.push({...G.current, ok:true});
+    setTimeout(()=>{ G.idx++; fadeTo(()=>{ toHub(); nextQuestion(); }); },700);
+  } else {
+    G.streak=0; G.wrong++; G.score=Math.max(0,G.score-25);
+    setTex(tg.mesh,tg.opt.meaning,'bad'); popRing(tg.mesh.position,0xff5a6e);
+    sndBad();
+    toast(rightRoom ? 'WRONG MEANING' : 'WRONG ROOM','#ff5a6e');
+    $('#flash').classList.add('bad'); setTimeout(()=>$('#flash').classList.remove('bad'),320);
+    G.log.push({...G.current, ok:false, got:tg.opt.meaning, wrongRoom:!rightRoom});
+    const right=targets.find(t=>t.correct);
+    setTimeout(()=>{ if(right){ setTex(right.mesh,right.opt.meaning,'good');
+      popRing(right.mesh.position,0x31d98b); } },260);
+    setTimeout(()=>{ G.idx++; fadeTo(()=>{ toHub(); nextQuestion(); }); },1700);
+  }
+  updateHUD();
+}
+function updateHUD(){
+  $('#scoreV').textContent=G.score;
+  $('#streakV').textContent=G.streak;
+  $('#streakV').classList.toggle('hot',G.streak>=3);
+  const hp=Math.round(G.hp);
+  $('#hpV').textContent=hp;
+  $('#hpIn').style.width=hp+'%';
+  $('#hpIn').classList.toggle('low',hp<=35);
+}
+function updateWepHUD(){
+  const w=WEAPONS[W.cur];
+  $('#wepName').textContent=w.name;
+  const slots=$('#wepSlots'); slots.innerHTML='';
+  WEAPONS.forEach((x,i)=>{
+    const d=document.createElement('div');
+    d.className='wepSlot'+(W.owned.indexOf(x.id)>=0?' have':'')+(i===W.cur?' on':'');
+    d.textContent=String(i+1); d.title=x.name;
+    slots.appendChild(d);
+  });
+}
+
+/* ═══════════════ INPUT ═══════════════ */
+function forwardVec(yawA,pitchA){
+  return { x:-Math.sin(yawA)*Math.cos(pitchA), y:Math.sin(pitchA), z:-Math.cos(yawA)*Math.cos(pitchA) };
+}
+function shoot(){
+  if(!ACTIVE() || W.cool>0) return;
+  const w=WEAPONS[W.cur];
+  W.cool=w.cool;
+  sndShoot(); recoil=1;
+  const ch=$('#crosshair'); ch.classList.add('kick'); setTimeout(()=>ch.classList.remove('kick'),80);
+
+  // ── answer panels: always the exact centre of the crosshair, one panel max ──
+  raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
+  const live=targets.filter(t=>!t.dead).map(t=>t.mesh);
+  const pHits=raycaster.intersectObjects(live.concat(colliders), false);
+  if(pHits.length){
+    const tg=targets.find(t=>t.mesh===pHits[0].object);  // nearest hit must be a panel
+    // you must actually be standing in the room — no sniping an answer
+    // through an open doorway from the safety of the hub
+    if(tg){
+      if(inRoom(tg.cat)) hitTarget(tg);
+      else toast('STEP INSIDE THE ROOM','#ffc94d');
+    }
+  }
+
+  // ── drones: one ray per pellet, spread and pierce apply here only ──
+  const origin=camera.position;
+  const alive=enemies.filter(e=>!e.dead);
+  const muzzle={ x:origin.x, y:origin.y-.18, z:origin.z };
+  for(let p=0;p<w.pellets;p++){
+    const d=forwardVec(yaw+rand(-w.spread,w.spread), pitch+rand(-w.spread,w.spread));
+    raycaster.set(new THREE.Vector3(origin.x,origin.y,origin.z), new THREE.Vector3(d.x,d.y,d.z));
+    const hits=raycaster.intersectObjects(alive.map(e=>e.mesh).concat(colliders), false);
+    let left=w.pierce, end=null;
+    for(const h of hits){
+      if(h.distance>w.range) break;
+      const e=alive.find(x=>x.mesh===h.object);
+      if(!e){ end=h.point; break; }            // a wall stops the shot
+      e.hp-=w.dmg; e.flash=.16;
+      popRing(h.point, w.color);
+      end=h.point;
+      if(e.hp<=0) killEnemy(e);
+      if(--left<=0) break;
+    }
+    if(!end) end={ x:origin.x+d.x*w.range, y:origin.y+d.y*w.range, z:origin.z+d.z*w.range };
+    if(p===0 || w.pellets<=2) popBeam(muzzle, end, w.color);
+  }
+}
+function pickWeapon(i){
+  if(i<0||i>=WEAPONS.length) return;
+  if(W.owned.indexOf(WEAPONS[i].id)<0){ sndDeny(); return; }
+  W.cur=i; W.cool=Math.max(W.cool,.12); updateWepHUD();
+  if(gun) gun.children.forEach(c=>{ if(c.material && c.material.color && c.__accent)
+    c.material.color.setHex(WEAPONS[i].color); });
+}
+
+addEventListener('mousemove', e=>{
+  if(document.pointerLockElement!==renderer.domElement) return;
+  yaw   -= (e.movementX||0)*.0022;
+  pitch  = THREE.MathUtils.clamp(pitch-(e.movementY||0)*.0022, -1.2, 1.0);
+});
+let mouseHeld=false;
+addEventListener('mousedown', e=>{
+  if(!ACTIVE()) return;
+  if(e.target.closest && e.target.closest('#speakBtn')) return;
+  if(document.pointerLockElement!==renderer.domElement){
+    renderer.domElement.requestPointerLock && renderer.domElement.requestPointerLock();
+    return;
+  }
+  mouseHeld=true; shoot();
+});
+addEventListener('mouseup', ()=>{ mouseHeld=false; });
+document.addEventListener('pointerlockchange',()=>{
+  mouseHeld=false;
+  if(G.running && !G.paused && !G.shopping && document.pointerLockElement!==renderer.domElement) pauseGame();
+});
+
+addEventListener('keydown', e=>{
+  keys[e.code]=true;
+  if(e.code==='Escape' && G.shopping){ closeShop(); return; }
+  if(e.code==='Escape' && G.running && !G.paused) pauseGame();
+  if(e.code==='KeyE' && ACTIVE() && nearTerminal()) openShop();
+  if(/^Digit[1-9]$/.test(e.code) && G.running) pickWeapon(+e.code.slice(5)-1);
+  if((e.key==='l'||e.key==='L')){
+    if(G.running && G.current) speak(G.current.term,'#speakBtn');
+    else if($('#study').classList.contains('on')) studySpeak();
+  }
+  if($('#study').classList.contains('on')){
+    if(e.code==='ArrowRight'){ e.preventDefault(); studyGo(1); }
+    if(e.code==='ArrowLeft'){ e.preventDefault(); studyGo(-1); }
+    if(e.code==='Space'){ e.preventDefault(); studyFlip(); }
+    if(e.code==='Escape') showMenu();
+  }
+  if(G.running && ['ArrowUp','ArrowDown','Space'].indexOf(e.code)>=0) e.preventDefault();
+});
+addEventListener('keyup', e=>{ keys[e.code]=false; });
+addEventListener('blur', ()=>{ for(const k in keys) keys[k]=false; });
+
+/* touch: left half = move, right half = look, tap = shoot */
+let touchMove=null, touchLook=null;
+addEventListener('touchstart', e=>{
+  if(!G.running||G.paused) return;
+  for(const t of e.changedTouches){
+    if(t.target.closest && t.target.closest('#speakBtn')) continue;
+    if(t.clientX < innerWidth*.45 && !touchMove)
+      touchMove={id:t.identifier, ox:t.clientX, oy:t.clientY, dx:0, dy:0};
+    else if(!touchLook)
+      touchLook={id:t.identifier, x:t.clientX, y:t.clientY, moved:0, t0:Date.now()};
+  }
+},{passive:true});
+addEventListener('touchmove', e=>{
+  for(const t of e.changedTouches){
+    if(touchMove && t.identifier===touchMove.id){
+      touchMove.dx=THREE.MathUtils.clamp((t.clientX-touchMove.ox)/60,-1,1);
+      touchMove.dy=THREE.MathUtils.clamp((t.clientY-touchMove.oy)/60,-1,1);
+    } else if(touchLook && t.identifier===touchLook.id){
+      const dx=t.clientX-touchLook.x, dy=t.clientY-touchLook.y;
+      yaw  -= dx*.005;
+      pitch = THREE.MathUtils.clamp(pitch-dy*.005,-1.2,1.0);
+      touchLook.moved += Math.abs(dx)+Math.abs(dy);
+      touchLook.x=t.clientX; touchLook.y=t.clientY;
+    }
+  }
+},{passive:true});
+addEventListener('touchend', e=>{
+  for(const t of e.changedTouches){
+    if(touchMove && t.identifier===touchMove.id) touchMove=null;
+    else if(touchLook && t.identifier===touchLook.id){
+      if(touchLook.moved<12 && Date.now()-touchLook.t0<260) shoot();
+      touchLook=null;
+    }
+  }
+},{passive:true});
+
+/* ═══════════════ MOVEMENT ═══════════════ */
+function inside(x,z){
+  for(let i=0;i<walkable.length;i++){
+    const r=walkable[i];
+    if(x>=r.x0 && x<=r.x1 && z>=r.z0 && z<=r.z1) return true;
+  }
+  return false;
+}
+function canStand(x,z){
+  return inside(x-PLAYER_R,z) && inside(x+PLAYER_R,z) &&
+         inside(x,z-PLAYER_R) && inside(x,z+PLAYER_R);
+}
+let stepAcc=0;
+function movePlayer(dt){
+  let f=0,s=0;
+  if(keys.KeyW||keys.ArrowUp)    f+=1;
+  if(keys.KeyS||keys.ArrowDown)  f-=1;
+  if(keys.KeyD||keys.ArrowRight) s+=1;
+  if(keys.KeyA||keys.ArrowLeft)  s-=1;
+  if(touchMove){ f-=touchMove.dy; s+=touchMove.dx; }
+  if(!f && !s){ bob*=.88; return; }
+  const len=Math.hypot(f,s); f/=len; s/=len;
+  const sprint=(keys.ShiftLeft||keys.ShiftRight)?1.6:1;
+  const sp=6.6*sprint*dt;
+  const fx=-Math.sin(yaw), fz=-Math.cos(yaw);
+  const rx= Math.cos(yaw), rz=-Math.sin(yaw);
+  const nx=camera.position.x + (fx*f+rx*s)*sp;
+  const nz=camera.position.z + (fz*f+rz*s)*sp;
+  if(canStand(nx,camera.position.z)) camera.position.x=nx;
+  if(canStand(camera.position.x,nz)) camera.position.z=nz;
+  bob = Math.min(1, bob+dt*6);
+  stepAcc += sp;
+  if(stepAcc>2.2){ stepAcc=0; sndStep(); }
+}
+
+/* ═══════════════ MINIMAP ═══════════════ */
+const mapC=$('#map'), mapX=mapC.getContext('2d');
+function drawMap(){
+  const W=mapC.width, H=mapC.height;
+  mapX.clearRect(0,0,W,H);
+  const minX=-hubHX-2, maxX=hubHX+2, minZ=-ROOM_D-2, maxZ=HUB_D+2;
+  const sc=Math.min(W/(maxX-minX), H/(maxZ-minZ));
+  const ox=(W-(maxX-minX)*sc)/2, oz=(H-(maxZ-minZ)*sc)/2;
+  const px=x=>ox+(x-minX)*sc, pz=z=>oz+(z-minZ)*sc;
+
+  mapX.fillStyle='rgba(255,255,255,.07)';
+  mapX.fillRect(px(-hubHX),pz(.3),(hubHX*2)*sc,(HUB_D-.3)*sc);
+
+  rooms.forEach(rm=>{
+    const target = G.current && rm.cat===G.current.cat && S.hint;
+    mapX.fillStyle = target ? catCss(rm.cat,42) : 'rgba(255,255,255,.09)';
+    mapX.fillRect(px(rm.cx-ROOM_HW),pz(-ROOM_D),ROOM_W*sc,(ROOM_D-.3)*sc);
+    mapX.strokeStyle = target ? catCss(rm.cat,70) : 'rgba(140,175,225,.35)';
+    mapX.lineWidth = target?2:1;
+    mapX.strokeRect(px(rm.cx-ROOM_HW),pz(-ROOM_D),ROOM_W*sc,(ROOM_D-.3)*sc);
+    mapX.fillStyle = target ? '#fff' : 'rgba(190,212,245,.75)';
+    mapX.font='bold 9px "Segoe UI",Arial,sans-serif'; mapX.textAlign='center';
+    const short=rm.cat.split(' ').map(w=>w[0]).join('').toUpperCase();
+    mapX.fillText(short, px(rm.cx), pz(-ROOM_D/2)+3);
+  });
+
+  if(terminal){
+    const tx=px(terminal.x), tz=pz(terminal.z);
+    mapX.fillStyle=nearTerminal()?'#ffc94d':'rgba(255,201,77,.55)';
+    mapX.beginPath(); mapX.arc(tx,tz,3.2,0,6.284); mapX.fill();
+    mapX.font='bold 8px "Segoe UI",Arial,sans-serif'; mapX.textAlign='center';
+    mapX.fillText('A', tx, tz-5);
+  }
+  enemies.forEach(e=>{
+    if(e.dead) return;
+    mapX.fillStyle='#ff5a6e';
+    mapX.beginPath();
+    mapX.arc(px(e.mesh.position.x), pz(e.mesh.position.z), 2.4, 0, 6.284);
+    mapX.fill();
+  });
+
+  const cx=px(camera.position.x), cz=pz(camera.position.z);
+  mapX.strokeStyle='#ffc94d'; mapX.lineWidth=2; mapX.beginPath();
+  mapX.moveTo(cx,cz);
+  mapX.lineTo(cx-Math.sin(yaw)*11, cz-Math.cos(yaw)*11); mapX.stroke();
+  mapX.fillStyle='#ffc94d'; mapX.beginPath(); mapX.arc(cx,cz,3.4,0,6.284); mapX.fill();
+}
+
+/* ═══════════════ ENEMY SIMULATION ═══════════════ */
+function updateEnemies(dt){
+  const exposed=playerExposed();
+  let threats=0;
+  enemies.forEach(e=>{
+    if(e.dead){
+      e.deadT+=dt;
+      const k=Math.min(1,e.deadT/.5);
+      [e.mesh,e.ring,e.eye].forEach(m=>{ m.scale.setScalar(Math.max(.01,1-k)); });
+      e.mesh.rotation.x+=dt*9; e.mesh.rotation.z+=dt*6;
+      if(k>=1){ [e.mesh,e.ring,e.eye].forEach(m=>m.visible=false); }
+      return;
+    }
+    threats++;
+    e.ph+=dt*1.6;
+    // drift along the doorway it guards
+    const x=e.homeX+Math.sin(e.ph*.5)*2.6;
+    const y=e.baseY+Math.sin(e.ph)*.28;
+    const z=e.baseZ+Math.cos(e.ph*.42)*.9;
+    e.mesh.position.set(x,y,z);
+    e.ring.position.set(x,y,z);
+    e.eye.position.set(x,y,z);
+    e.mesh.rotation.y+=dt*1.1;
+    e.ring.rotation.z+=dt*2.2;
+
+    // face the player and keep the eye toward them
+    const dx=camera.position.x-x, dz=camera.position.z-z;
+    const dist=Math.hypot(dx,dz);
+    const ang=Math.atan2(dx,dz);
+    e.eye.position.set(x+Math.sin(ang)*.5, y, z+Math.cos(ang)*.5);
+    e.ring.rotation.x=Math.PI/2+Math.sin(e.ph*.8)*.25;
+
+    if(e.flash>0){ e.flash-=dt; e.mesh.material.color.setHex(e.flash>0?0xffffff:0xb03246); }
+
+    // soft body block: nudge the player out rather than trapping them
+    if(dist<1.25 && dist>.001){
+      camera.position.x += (dx/dist)*(1.25-dist)*-1;
+      camera.position.z += (dz/dist)*(1.25-dist)*-1;
+    }
+
+    if(exposed && dist<26){
+      e.fire-=dt;
+      if(e.fire<=0){ e.fire=rand(1.5,2.7); enemyFire(e); }
+    }
+  });
+  const hint=$('#enemyHint');
+  if(threats && playerExposed() && G.hp<45){ hint.textContent='!'; hint.classList.add('on'); }
+  else hint.classList.remove('on');
+}
+function updateShots(dt, live){
+  for(let i=eshots.length-1;i>=0;i--){
+    const s=eshots[i];
+    if(!live){ continue; }
+    s.life-=dt;
+    s.mesh.position.x+=s.vx*dt;
+    s.mesh.position.y+=s.vy*dt;
+    s.mesh.position.z+=s.vz*dt;
+    const p=s.mesh.position;
+    const hitPlayer = Math.hypot(p.x-camera.position.x, p.y-camera.position.y, p.z-camera.position.z) < .75;
+    const offMap = p.y<.1 || p.y>WALL_H || !inside(p.x,p.z);
+    if(hitPlayer){ damagePlayer(ENEMY_DMG); }
+    if(hitPlayer || offMap || s.life<=0){
+      s.mesh.visible=false; eshots.splice(i,1);
+    }
+  }
+}
+
+/* ═══════════════ LOOP ═══════════════ */
+let prev=performance.now();
+function animate(now){
+  requestAnimationFrame(animate);
+  const dt=Math.min((now-prev)/1000,.05); prev=now;
+
+  const live=ACTIVE();
+  if(live) movePlayer(dt);
+
+  // weapon cooldown + held-trigger auto fire
+  if(W.cool>0) W.cool=Math.max(0,W.cool-dt);
+  if(live && mouseHeld && W.cool<=0) shoot();
+  if(G.running){
+    const w=WEAPONS[W.cur];
+    $('#wepCoolIn').style.width=(w.cool?Math.min(1,1-W.cool/w.cool):1)*100+'%';
+  }
+
+  // player recovery
+  if(live){
+    if(G.invuln>0) G.invuln=Math.max(0,G.invuln-dt);
+    if(G.regenWait>0) G.regenWait=Math.max(0,G.regenWait-dt);
+    else if(G.hp<100){ G.hp=Math.min(100,G.hp+dt*7); updateHUD(); }
+  }
+
+  if(live) updateEnemies(dt);
+  updateShots(dt, live);
+  beamPool.forEach(b=>{
+    if(!b.mesh.visible) return;
+    b.t+=dt; const k=b.t/.09;
+    if(k>=1){ b.mesh.visible=false; b.mesh.material.opacity=0; return; }
+    b.mesh.material.opacity=(1-k)*.85;
+  });
+
+  // armoury prompt + beacon
+  if(terminal){
+    terminal.orb.position.y=2.35+Math.sin(now/430)*.11;
+    terminal.grp.rotation.y=Math.sin(now/1700)*.16;
+  }
+  const showPrompt = live && nearTerminal();
+  $('#prompt').classList.toggle('on', !!showPrompt);
+  if(showPrompt) $('#promptTxt').textContent='Armoury — spend '+G.score+' score';
+
+  targets.forEach(t=>{
+    if(t.dead){
+      t.mesh.scale.multiplyScalar(1-dt*1.1);
+      t.mesh.material.opacity=Math.max(0,t.mesh.material.opacity-dt*.7);
+    }
+  });
+  ringPool.forEach(r=>{
+    if(!r.mesh.visible) return;
+    r.t+=dt; const k=r.t/.55;
+    if(k>=1){ r.mesh.visible=false; r.mesh.material.opacity=0; return; }
+    r.mesh.scale.setScalar(1+k*5); r.mesh.material.opacity=(1-k)*.9;
+    r.mesh.lookAt(camera.position);
+  });
+
+  camera.rotation.y=yaw;
+  camera.rotation.x=pitch+recoil*.03;
+  camera.position.y=EYE+Math.sin(now/150)*.035*bob;
+  recoil=Math.max(0,recoil-dt*7);
+  if(gun){
+    gun.position.z=-.55+recoil*.16;
+    gun.position.y=-.30+Math.sin(now/620)*.008-bob*.02;
+    gun.rotation.x=recoil*.24;
+  }
+
+  if(G.running && !G.paused && S.timeLimit>0){
+    G.timeLeft-=dt;
+    if(G.timeLeft<=0){ G.timeLeft=0; renderTimer(); endRound(); }
+    else renderTimer();
+  }
+  if(G.running) drawMap();
+
+  renderer.render(scene,camera);
+}
+function renderTimer(){
+  if(S.timeLimit<=0){ $('#timerV').textContent='∞'; $('#timerWrap').classList.remove('low'); return; }
+  const s=Math.ceil(G.timeLeft);
+  $('#timerV').textContent=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+  $('#timerWrap').classList.toggle('low',s<=20);
+}
+
+/* ═══════════════ FLOW ═══════════════ */
+const SCREENS=['menu','study','pause','results','armoury'];
+function show(id){ SCREENS.forEach(x=>$('#'+x).classList.toggle('on',x===id)); }
+function hideAll(){ SCREENS.forEach(x=>$('#'+x).classList.remove('on')); }
+function showMenu(){ show('menu'); updatePool(); }
+
+function startGame(src){
+  hideAll();
+  $('#hud').classList.add('on');
+  document.body.style.cursor='none';
+  Object.assign(G,{running:true,paused:false,shopping:false,idx:0,score:0,spent:0,
+    streak:0,bestStreak:0,correct:0,wrong:0,hp:100,invuln:1.5,regenWait:0,
+    kills:0,downs:0,timeLeft:S.timeLimit,log:[],locked:false,missedItems:[]});
+  W.owned=['blaster']; W.cur=0; W.cool=0; mouseHeld=false;
+  G.queue=buildQueue(src);
+  buildLevel(); clearEnemies(); toHub();
+  ac();
+  updateHUD(); updateWepHUD(); renderTimer();
+  if(!isTouch) renderer.domElement.requestPointerLock && renderer.domElement.requestPointerLock();
+  nextQuestion();
+}
+/* ── armoury ── */
+function renderShop(){
+  $('#shopBal').textContent=G.score;
+  $('#shopSpent').textContent=G.spent;
+  const grid=$('#wepGrid'); grid.innerHTML='';
+  WEAPONS.forEach((w,i)=>{
+    const owned=W.owned.indexOf(w.id)>=0, equipped=i===W.cur;
+    const c=document.createElement('div');
+    c.className='wepCard'+(owned?' owned':'')+(equipped?' equipped':'');
+    const hex='#'+w.color.toString(16).padStart(6,'0');
+    c.innerHTML =
+      '<h4><span class="swatch" style="background:'+hex+'"></span>'+esc(w.name)+'</h4>'+
+      '<p>'+esc(w.desc)+'</p>'+
+      '<div class="wepStats">'+ WSTAT.map(([lab,f])=>
+        '<div class="wepStat"><span class="lab">'+lab+'</span>'+
+        '<span class="track"><span class="fill" style="width:'+
+        Math.round(Math.min(1,f(w))*100)+'%;background:'+hex+'"></span></span></div>').join('')+
+      '</div>';
+    const b=document.createElement('button');
+    b.className='wepBuy'+(owned&&!equipped?' equip':'');
+    if(equipped){ b.textContent='Equipped'; b.disabled=true; }
+    else if(owned){ b.textContent='Equip'; b.onclick=()=>{ pickWeapon(i); renderShop(); }; }
+    else {
+      b.textContent='Buy — '+w.cost+' score';
+      b.disabled = G.score < w.cost;
+      b.onclick=()=>{
+        if(G.score < w.cost){ sndDeny(); return; }
+        G.score-=w.cost; G.spent+=w.cost; W.owned.push(w.id);
+        sndBuy(); pickWeapon(i); updateHUD(); renderShop();
+      };
+    }
+    c.appendChild(b);
+    grid.appendChild(c);
+  });
+}
+function openShop(){
+  if(!G.running || G.shopping) return;
+  G.shopping=true; mouseHeld=false;
+  for(const k in keys) keys[k]=false;
+  if(document.pointerLockElement) document.exitPointerLock();
+  document.body.style.cursor='default';
+  $('#prompt').classList.remove('on');
+  renderShop(); show('armoury');
+}
+function closeShop(){
+  if(!G.shopping) return;
+  G.shopping=false; hideAll(); document.body.style.cursor='none';
+  if(!isTouch) renderer.domElement.requestPointerLock && renderer.domElement.requestPointerLock();
+}
+$('#shopClose').onclick=closeShop;
+
+function pauseGame(){
+  if(!G.running) return;
+  G.paused=true; G.shopping=false; show('pause'); document.body.style.cursor='default';
+  for(const k in keys) keys[k]=false;
+  if(window.speechSynthesis) speechSynthesis.cancel();
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+function resumeGame(){
+  G.paused=false; hideAll(); document.body.style.cursor='none';
+  if(!isTouch) renderer.domElement.requestPointerLock && renderer.domElement.requestPointerLock();
+}
+function endRound(){
+  if(!G.running) return;
+  G.running=false; G.paused=false; G.shopping=false; mouseHeld=false;
+  clearTargets(); clearEnemies();
+  $('#prompt').classList.remove('on');
+  $('#enemyHint').classList.remove('on');
+  $('#hud').classList.remove('on');
+  document.body.style.cursor='default';
+  if(document.pointerLockElement) document.exitPointerLock();
+  if(window.speechSynthesis) speechSynthesis.cancel();
+  sndEnd();
+
+  const total=G.correct+G.wrong;
+  $('#rScore').textContent=G.score;
+  $('#rCorrect').textContent=G.correct;
+  $('#rWrong').textContent=G.wrong;
+  $('#rAcc').textContent= total?Math.round(G.correct/total*100)+'%':'—';
+  $('#rStreak').textContent=G.bestStreak;
+  $('#rKills').textContent=G.kills;
+  $('#rSpent').textContent=G.spent;
+  $('#rEarned').textContent =
+    'Total earned this round: '+(G.score+G.spent)+
+    ' · '+G.spent+' spent in the armoury'+
+    (G.downs?' · downed '+G.downs+' time'+(G.downs>1?'s':'')+' (−50 each)':'');
+
+  const missed=G.log.filter(l=>!l.ok);
+  const list=$('#reviewList'); list.innerHTML='';
+  const items = missed.length?missed:G.log;
+  $('#revTitle').textContent = missed.length
+    ? 'Review — '+missed.length+' phrase'+(missed.length>1?'s':'')+' to go over'
+    : (G.log.length?'All correct! 🎉 Phrases from this round:':'No questions answered.');
+  $('#drillBtn').style.display = missed.length?'':'none';
+
+  items.forEach(l=>{
+    const d=document.createElement('div');
+    d.className='rItem'+(l.ok?' ok':'');
+    d.innerHTML='<div class="rCat">'+esc(l.cat)+(l.wrongRoom?' · wrong room':'')+'</div>'+
+      '<div class="rTerm">'+esc(l.term)+'</div>'+
+      '<div class="rMean">✔ <b>'+esc(l.meaning)+'</b></div>'+
+      (l.ok?'':'<div class="rGot">✘ You picked: '+esc(l.got||'—')+'</div>');
+    d.onclick=()=>speak(l.term);
+    list.appendChild(d);
+  });
+  G.missedItems=missed.map(m=>({term:m.term,meaning:m.meaning,cat:m.cat,group:m.group}));
+  show('results');
+}
+
+$('#startBtn').onclick=()=>startGame(null);
+$('#resumeBtn').onclick=resumeGame;
+$('#quitBtn').onclick=()=>{ G.paused=false; endRound(); };
+$('#againBtn').onclick=()=>startGame(null);
+$('#menuBtn').onclick=showMenu;
+$('#drillBtn').onclick=()=>{
+  const m=G.missedItems||[]; if(!m.length) return startGame(null);
+  const old=S.roundLen; S.roundLen=0; startGame(m); S.roundLen=old;
+};
+
+/* ═══════════════ STUDY MODE ═══════════════ */
+const ST={ cats:CATS.slice(), list:[], i:0, revealed:false, shuffled:false };
+const studyCats=$('#studyCats');
+CATS.forEach(c=>{
+  const b=document.createElement('button');
+  b.className='chip sel'; b.dataset.v=c;
+  b.innerHTML='<span class="dot" style="background:'+catCss(c)+'"></span>'+esc(c)+
+              ' <span class="cnt">'+WORD_DATA[c].length+'</span>';
+  b.onclick=()=>{
+    b.classList.toggle('sel');
+    const sel=[...studyCats.querySelectorAll('.chip.sel')];
+    if(!sel.length){ b.classList.add('sel'); return; }
+    ST.cats=sel.map(x=>x.dataset.v); studyBuild();
+  };
+  studyCats.appendChild(b);
+});
+function studyBuild(){
+  const l=[]; ST.cats.forEach(c=>WORD_DATA[c].forEach(i=>l.push({...i,cat:c})));
+  ST.list = ST.shuffled ? shuffle(l) : l;
+  ST.i=0; ST.revealed=false; studyRender();
+}
+function studyRender(){
+  const it=ST.list[ST.i];
+  if(!it){ $('#cardTerm').textContent='—'; $('#cardMean').textContent=''; return; }
+  $('#cardCat').textContent = it.theme ? (it.cat+' · '+it.theme) : it.cat;
+  $('#cardNum').textContent=(ST.i+1)+' / '+ST.list.length;
+  $('#cardTerm').textContent=it.term;
+  const m=$('#cardMean'), b=$('#cardBm');
+  if(ST.revealed){ m.textContent=it.meaning; m.classList.remove('hidden'); $('#sFlip').textContent='Hide'; }
+  else { m.textContent='Click the card to reveal the meaning'; m.classList.add('hidden'); $('#sFlip').textContent='Reveal'; }
+  if(ST.revealed && it.bm){ b.innerHTML='<b>Maksud (BM)</b>'+esc(it.bm); b.hidden=false; }
+  else b.hidden=true;
+  $('#studyProgIn').style.width=((ST.i+1)/ST.list.length*100)+'%';
+}
+function studyGo(d){
+  if(!ST.list.length) return;
+  ST.i=(ST.i+d+ST.list.length)%ST.list.length; ST.revealed=false; studyRender();
+}
+function studyFlip(){ ST.revealed=!ST.revealed; studyRender(); }
+function studySpeak(){ const it=ST.list[ST.i]; if(it) speak(it.term,'#sSpeak'); }
+function openStudy(){ show('study'); if(!ST.list.length) studyBuild(); else studyRender(); }
+
+$('#studyBtn').onclick=openStudy;
+$('#studyBtn2').onclick=openStudy;
+$('#sBack').onclick=showMenu;
+$('#sPrev').onclick=()=>studyGo(-1);
+$('#sNext').onclick=()=>studyGo(1);
+$('#sFlip').onclick=studyFlip;
+$('#sSpeak').onclick=studySpeak;
+$('#card').onclick=studyFlip;
+$('#sShuffle').onchange=e=>{ ST.shuffled=e.target.checked; studyBuild(); };
+
+/* ═══════════════ BOOT ═══════════════ */
+try{
+  if(!window.THREE) throw new Error('Three.js failed to load');
+  initThree();
+  buildLevel();
+  requestAnimationFrame(animate);
+}catch(err){
+  console.error(err);
+  const w=$('#webglWarn'); w.style.display='';
+  w.textContent='Could not start the 3D arena: '+err.message+
+    '. Check your internet connection (Three.js loads from a CDN), or try Chrome or Edge. '+
+    'Study Mode still works without 3D.';
+}
+</script>
+</body>
+</html>
